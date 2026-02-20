@@ -1,98 +1,164 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { router } from "expo-router";
+import React, { useEffect, useRef } from "react";
+import {
+  Animated,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+export default function LandingScreen() {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const bounceAnim = useRef(new Animated.Value(0)).current;
 
-export default function HomeScreen() {
+  useEffect(() => {
+    // Fade in animation
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 1500,
+      useNativeDriver: true,
+    }).start();
+
+    // Bounce animation for arrow
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(bounceAnim, {
+          toValue: 10,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(bounceAnim, {
+          toValue: 0,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
+
+  const startApp = () => {
+    router.push("/login");
+  };
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#f0fff4" />
+      
+      {/* Main Content */}
+      <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
+        {/* Icon */}
+        <View style={styles.iconContainer}>
+          <MaterialCommunityIcons name="sprout" size={100} color="#2E7D32" />
+        </View>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+        {/* Title */}
+        <Text style={styles.title}>AgroCare</Text>
+        
+        {/* Subtitle */}
+        <Text style={styles.subtitle}>
+          Smart Farming Assistant
+        </Text>
+
+        {/* Description */}
+        <Text style={styles.description}>
+          Manage your farm efficiently with real-time insights and smart recommendations
+        </Text>
+      </Animated.View>
+
+      {/* Start Button with Arrow */}
+      <Animated.View 
+        style={[
+          styles.buttonContainer,
+          { transform: [{ translateY: bounceAnim }] }
+        ]}
+      >
+        <TouchableOpacity
+          style={styles.startButton}
+          onPress={startApp}
+          activeOpacity={0.7}
+        >
+          <MaterialCommunityIcons name="arrow-right" size={40} color="#2E7D32" />
+        </TouchableOpacity>
+        <Text style={styles.tapText}>Tap to start</Text>
+      </Animated.View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: {
+    flex: 1,
+    backgroundColor: "#f0fff4", // Light green background
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 80,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  content: {
+    alignItems: "center",
+    paddingHorizontal: 30,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  iconContainer: {
+    marginBottom: 20,
+    backgroundColor: "#e8f5e9",
+    padding: 20,
+    borderRadius: 100,
+    shadowColor: "#2E7D32",
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+    elevation: 5,
+  },
+  title: {
+    fontSize: 48,
+    fontWeight: "bold",
+    color: "#2E7D32",
+    marginBottom: 10,
+    letterSpacing: 1,
+  },
+  subtitle: {
+    fontSize: 20,
+    color: "#388E3C",
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  description: {
+    fontSize: 16,
+    color: "#555",
+    textAlign: "center",
+    lineHeight: 24,
+    maxWidth: 300,
+  },
+  buttonContainer: {
+    alignItems: "center",
+  },
+  startButton: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "white",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#2E7D32",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+    borderWidth: 2,
+    borderColor: "#2E7D32",
+  },
+  tapText: {
+    marginTop: 10,
+    fontSize: 14,
+    color: "#2E7D32",
+    fontWeight: "500",
   },
 });
