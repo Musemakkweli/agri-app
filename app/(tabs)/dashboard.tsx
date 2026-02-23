@@ -1,17 +1,23 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import axios from "axios";
+import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-    Alert,
-    Dimensions,
-    Modal,
-    RefreshControl,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
+import BASE_URL from "../../services/api";
 
 const { width } = Dimensions.get("window");
 
@@ -26,14 +32,39 @@ interface RecentComplaint {
   statusColor: string;
 }
 
-interface RecentHarvest {
+interface Field {
   id: number;
-  crop: string;
-  field: string;
-  amount: string;
+  name: string;
+  area: string;
+  crop_type: string;
+  location: string;
+}
+
+interface Pest {
+  id: number;
+  field_id: number;
+  pest_type: string;
+  severity: string;
+  description: string;
+  created_at: string;
+}
+
+interface WeatherAlert {
+  id: number;
+  type: string;
+  message: string;
+  severity: string;
   date: string;
-  icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
-  statusColor: string;
+}
+
+interface Complaint {
+  id: number;
+  title: string;
+  type: string;
+  description: string;
+  location: string;
+  status: string;
+  created_at: string;
 }
 
 interface Notification {
@@ -46,12 +77,16 @@ interface Notification {
 }
 
 // Mini Card Component
-const MiniCard = ({ title, value, icon, color, onPress }: any) => (
-  <TouchableOpacity style={styles.miniCard} onPress={onPress}>
+const MiniCard = ({ title, value, icon, color, onPress, loading }: any) => (
+  <TouchableOpacity style={styles.miniCard} onPress={onPress} disabled={loading}>
     <View style={[styles.miniCardIcon, { backgroundColor: color + "15" }]}>
-      <MaterialCommunityIcons name={icon} size={24} color={color} />
+      {loading ? (
+        <ActivityIndicator size="small" color={color} />
+      ) : (
+        <MaterialCommunityIcons name={icon} size={24} color={color} />
+      )}
     </View>
-    <Text style={styles.miniCardValue}>{value}</Text>
+    <Text style={styles.miniCardValue}>{loading ? "..." : value}</Text>
     <Text style={styles.miniCardTitle}>{title}</Text>
   </TouchableOpacity>
 );
@@ -67,7 +102,7 @@ const QuickActionButton = ({ label, icon, color, onPress }: any) => (
   </TouchableOpacity>
 );
 
-// Section Title with Notification Badge
+// Section Title
 const SectionTitle = ({ title, notificationCount }: { title: string; notificationCount?: number }) => (
   <View style={styles.sectionTitleContainer}>
     <Text style={styles.sectionTitle}>{title}</Text>
@@ -80,8 +115,8 @@ const SectionTitle = ({ title, notificationCount }: { title: string; notificatio
 );
 
 // Recent Item Component
-const RecentItem = ({ icon, title, subtitle, status, statusColor }: any) => (
-  <View style={styles.recentItem}>
+const RecentItem = ({ icon, title, subtitle, status, statusColor, onPress }: any) => (
+  <TouchableOpacity style={styles.recentItem} onPress={onPress}>
     <View style={[styles.recentIcon, { backgroundColor: statusColor + "15" }]}>
       <MaterialCommunityIcons name={icon} size={20} color={statusColor} />
     </View>
@@ -92,7 +127,7 @@ const RecentItem = ({ icon, title, subtitle, status, statusColor }: any) => (
     <View style={[styles.recentStatus, { backgroundColor: statusColor + "15" }]}>
       <Text style={[styles.recentStatusText, { color: statusColor }]}>{status}</Text>
     </View>
-  </View>
+  </TouchableOpacity>
 );
 
 // Notification Item Component
@@ -117,112 +152,528 @@ const NotificationItem = ({ notification, onPress }: { notification: Notificatio
   </TouchableOpacity>
 );
 
+// Form Modal Component
+const FormModal = ({ 
+  visible, 
+  onClose, 
+  title, 
+  children,
+  loading 
+}: { 
+  visible: boolean; 
+  onClose: () => void; 
+  title: string; 
+  children: React.ReactNode;
+  loading?: boolean;
+}) => (
+  <Modal
+    visible={visible}
+    animationType="slide"
+    transparent={true}
+    onRequestClose={onClose}
+  >
+    <View style={styles.formModalOverlay}>
+      <View style={styles.formModalContent}>
+        <View style={styles.formModalHeader}>
+          <Text style={styles.formModalTitle}>{title}</Text>
+          <TouchableOpacity onPress={onClose} disabled={loading}>
+            <MaterialCommunityIcons name="close" size={24} color={loading ? "#ccc" : "#2E7D32"} />
+          </TouchableOpacity>
+        </View>
+        <ScrollView style={styles.formModalBody}>
+          {children}
+        </ScrollView>
+      </View>
+    </View>
+  </Modal>
+);
+
 export default function FarmerDashboard() {
-  const [userName, setUserName] = useState<string>("Farmer");
-  const [selectedTab, setSelectedTab] = useState<string>("overview");
-  const [refreshing, setRefreshing] = useState<boolean>(false);
-  const [showNotifications, setShowNotifications] = useState<boolean>(false);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [userName, setUserName] = useState("Farmer");
+  const [userId, setUserId] = useState<number | null>(null);
+  const [selectedTab, setSelectedTab] = useState("overview");
+  const [showNotifications, setShowNotifications] = useState(false);
   
-  // Sample data states
-  const [fields] = useState<number>(3);
-  const [harvests] = useState<number>(5);
-  const [pests] = useState<number>(2);
-  const [complaints] = useState<number>(2);
+  // Dashboard data - initialize as empty arrays
+  const [fields, setFields] = useState<Field[]>([]);
+  const [harvests, setHarvests] = useState<any[]>([]);
+  const [pests, setPests] = useState<Pest[]>([]);
+  const [weatherAlerts, setWeatherAlerts] = useState<WeatherAlert[]>([]);
+  const [complaints, setComplaints] = useState<Complaint[]>([]);
 
-  // Notification counts
-  const [pendingComplaints] = useState<number>(2);
-  const [upcomingHarvests] = useState<number>(3);
-  const [newPests] = useState<number>(1);
+  // Form visibility states
+  const [showFieldForm, setShowFieldForm] = useState(false);
+  const [showHarvestForm, setShowHarvestForm] = useState(false);
+  const [showPestForm, setShowPestForm] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   
+  // Form data states
+  const [fieldForm, setFieldForm] = useState({
+    name: "",
+    area: "",
+    crop_type: "",
+    location: ""
+  });
+  
+  const [harvestForm, setHarvestForm] = useState({
+    field_id: "",
+    crop_type: "",
+    harvest_date: ""
+  });
+  
+  const [pestForm, setPestForm] = useState({
+    field_id: "",
+    pest_type: "",
+    severity: "",
+    description: ""
+  });
+
   // Notifications data
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: 1,
-      title: "New Pest Detected",
-      message: "Aphids detected in Field B. Take action immediately.",
-      time: "5 minutes ago",
-      read: false,
-      type: "alert"
-    },
-    {
-      id: 2,
-      title: "Harvest Reminder",
-      message: "Maize in Field A is ready for harvest.",
-      time: "1 hour ago",
-      read: false,
-      type: "info"
-    },
-    {
-      id: 3,
-      title: "Weather Alert",
-      message: "Heavy rain expected tomorrow. Plan accordingly.",
-      time: "3 hours ago",
-      read: true,
-      type: "alert"
-    },
-    {
-      id: 4,
-      title: "Complaint Update",
-      message: "Your equipment complaint has been resolved.",
-      time: "1 day ago",
-      read: true,
-      type: "info"
-    }
-  ]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
 
-  const unreadCount = notifications.filter(n => !n.read).length;
-
-  // Sample recent data
-  const recentComplaints: RecentComplaint[] = [
-    { id: 1, type: "Equipment Failure", field: "Field A", status: "Pending", date: "2h ago", icon: "tools", statusColor: "#8B5A2B" },
-    { id: 2, type: "Pest Infestation", field: "Field B", status: "In Progress", date: "1d ago", icon: "bug", statusColor: "#2E7D32" },
-    { id: 3, type: "Irrigation Issue", field: "Field C", status: "Resolved", date: "2d ago", icon: "water", statusColor: "#4CAF50" },
-  ];
-
-  const recentHarvests: RecentHarvest[] = [
-    { id: 1, crop: "Maize", field: "Field A", amount: "500 kg", date: "Today", icon: "corn", statusColor: "#2E7D32" },
-    { id: 2, crop: "Beans", field: "Field B", amount: "300 kg", date: "Yesterday", icon: "food", statusColor: "#8B5A2B" },
-  ];
-
-  // Get user from storage
+  // Load user data
   useEffect(() => {
-    // In a real app, you'd get this from AsyncStorage
-    setUserName("John");
+    loadUserData();
   }, []);
 
-  const onRefresh = (): void => {
+  // Load dashboard data when userId is available
+  useEffect(() => {
+    if (userId) {
+      loadDashboardData();
+      loadNotifications();
+    }
+  }, [userId]);
+
+  const loadUserData = async () => {
+    try {
+      const userStr = await AsyncStorage.getItem("user");
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        setUserName(user.full_name || user.name || "Farmer");
+        setUserId(user.id);
+      } else {
+        Alert.alert("Session Expired", "Please login again");
+        router.push("/login");
+      }
+    } catch (error) {
+      console.error("Error loading user:", error);
+    }
+  };
+
+  const loadDashboardData = async () => {
+  try {
+    const token = await AsyncStorage.getItem("token") || await AsyncStorage.getItem("user_token");
+    
+    if (!token || !userId) {
+      throw new Error("No authentication token");
+    }
+
+    const headers = { Authorization: `Bearer ${token}` };
+
+    // Fetch fields
+    try {
+      const fieldsRes = await axios.get(`${BASE_URL}/fields/user/${userId}`, { headers });
+      // Check if it's an array, if not, set empty array
+      setFields(Array.isArray(fieldsRes.data) ? fieldsRes.data : []);
+      console.log("Fields loaded:", Array.isArray(fieldsRes.data) ? fieldsRes.data.length : 0);
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        setFields([]);
+      } else {
+        console.log("Fields endpoint error:", error.message);
+        setFields([]);
+      }
+    }
+
+    // Fetch harvests
+    try {
+      const harvestsRes = await axios.get(`${BASE_URL}/harvests/user/${userId}`, { headers });
+      // Check if it's an array, if not, set empty array
+      setHarvests(Array.isArray(harvestsRes.data) ? harvestsRes.data : []);
+      console.log("Harvests loaded:", Array.isArray(harvestsRes.data) ? harvestsRes.data.length : 0);
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        setHarvests([]);
+      } else {
+        console.log("Harvests endpoint error:", error.message);
+        setHarvests([]);
+      }
+    }
+
+    // Fetch pests
+    try {
+      const pestsRes = await axios.get(`${BASE_URL}/pest-alerts/user/${userId}`, { headers });
+      // Check if it's an array, if not, set empty array
+      setPests(Array.isArray(pestsRes.data) ? pestsRes.data : []);
+      console.log("Pests loaded:", Array.isArray(pestsRes.data) ? pestsRes.data.length : 0);
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        setPests([]);
+      } else {
+        console.log("Pests endpoint error:", error.message);
+        setPests([]);
+      }
+    }
+
+    // Fetch weather alerts
+    try {
+      const weatherRes = await axios.get(`${BASE_URL}/weather-alerts`, { headers });
+      // Check if it's an array, if not, set empty array
+      setWeatherAlerts(Array.isArray(weatherRes.data) ? weatherRes.data : []);
+    } catch (error: any) {
+      console.log("Weather alerts endpoint error:", error.message);
+      setWeatherAlerts([]);
+    }
+
+    // Fetch complaints
+    try {
+      const complaintsRes = await axios.get(`${BASE_URL}/complaints/user/${userId}`, { headers });
+      // Check if it's an array, if not, set empty array
+      setComplaints(Array.isArray(complaintsRes.data) ? complaintsRes.data : []);
+      console.log("Complaints loaded:", Array.isArray(complaintsRes.data) ? complaintsRes.data.length : 0);
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        setComplaints([]);
+      } else {
+        console.log("Complaints endpoint error:", error.message);
+        setComplaints([]);
+      }
+    }
+
+  } catch (error) {
+    console.error("Error loading dashboard:", error);
+  } finally {
+    setLoading(false);
+    setRefreshing(false);
+  }
+};
+
+  const loadNotifications = async () => {
+    try {
+      const token = await AsyncStorage.getItem("token") || await AsyncStorage.getItem("user_token");
+      if (!token || !userId) return;
+
+      try {
+        const response = await axios.get(`${BASE_URL}/notifications/${userId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        const notifs = Array.isArray(response.data) ? response.data : [];
+        
+        const formattedNotifs: Notification[] = notifs.map((n: any) => ({
+          id: n.id,
+          title: n.title,
+          message: n.message,
+          time: formatTimeAgo(n.created_at),
+          read: n.is_read,
+          type: n.type?.includes('alert') ? 'alert' : 'info'
+        }));
+
+        setNotifications(formattedNotifs);
+        setUnreadCount(formattedNotifs.filter(n => !n.read).length);
+      } catch (error: any) {
+        if (error.response?.status === 404) {
+          setNotifications([]);
+          setUnreadCount(0);
+        } else {
+          console.log("Notifications endpoint error:", error.message);
+          setNotifications([]);
+          setUnreadCount(0);
+        }
+      }
+
+    } catch (error) {
+      console.error("Error loading notifications:", error);
+    }
+  };
+
+  const formatTimeAgo = (dateString: string): string => {
+    if (!dateString) return "Recently";
+    try {
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffMs = now.getTime() - date.getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMins / 60);
+      const diffDays = Math.floor(diffHours / 24);
+
+      if (diffMins < 1) return "Just now";
+      if (diffMins < 60) return `${diffMins} min ago`;
+      if (diffHours < 24) return `${diffHours} hour ago`;
+      if (diffDays === 1) return "Yesterday";
+      return `${diffDays} days ago`;
+    } catch {
+      return "Recently";
+    }
+  };
+
+  const onRefresh = () => {
     setRefreshing(true);
-    // Simulate data refresh
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 2000);
+    loadDashboardData();
+    loadNotifications();
   };
 
   const handleCardPress = (title: string): void => {
-    Alert.alert(`${title}`, `View all ${title.toLowerCase()}`);
+    const routes: { [key: string]: string } = {
+      "Fields": "/fields",
+      "Harvests": "/harvests",
+      "Pests": "/pests",
+      "Weather": "/weather",
+      "Complaints": "/complaint"
+    };
+    
+    if (routes[title]) {
+      router.push(routes[title] as any);
+    }
   };
 
   const handleQuickAction = (action: string): void => {
-    Alert.alert("Quick Action", `Open ${action} form`);
+    switch(action) {
+      case "Add Field":
+        setShowFieldForm(true);
+        break;
+      case "Schedule Harvest":
+        setShowHarvestForm(true);
+        break;
+      case "Report Pest":
+        setShowPestForm(true);
+        break;
+      case "New Complaint":
+        router.push("/complaint");
+        break;
+    }
   };
 
-  const handleNotificationPress = (notification: Notification) => {
-    // Mark as read
-    setNotifications(notifications.map(n => 
-      n.id === notification.id ? { ...n, read: true } : n
-    ));
-    Alert.alert(notification.title, notification.message);
+  const handleNotificationPress = async (notification: Notification) => {
+    try {
+      const token = await AsyncStorage.getItem("token") || await AsyncStorage.getItem("user_token");
+      
+      try {
+        await axios.patch(`${BASE_URL}/notifications/${notification.id}/read`, {}, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      } catch (error) {
+        console.log("Mark as read endpoint not available");
+      }
+
+      setNotifications(notifications.map(n => 
+        n.id === notification.id ? { ...n, read: true } : n
+      ));
+      setUnreadCount(prev => Math.max(0, prev - 1));
+
+      Alert.alert(notification.title, notification.message);
+    } catch (error) {
+      console.error("Error marking notification as read:", error);
+    }
   };
 
-  const markAllAsRead = () => {
-    setNotifications(notifications.map(n => ({ ...n, read: true })));
+  const markAllAsRead = async () => {
+    try {
+      const token = await AsyncStorage.getItem("token") || await AsyncStorage.getItem("user_token");
+      
+      try {
+        await axios.post(`${BASE_URL}/notifications/mark-all-read`, {}, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      } catch (error) {
+        console.log("Mark all read endpoint not available");
+      }
+
+      setNotifications(notifications.map(n => ({ ...n, read: true })));
+      setUnreadCount(0);
+    } catch (error) {
+      console.error("Error marking all as read:", error);
+    }
   };
+
+  const submitField = async () => {
+    if (!fieldForm.name || !fieldForm.area || !fieldForm.crop_type || !fieldForm.location) {
+      Alert.alert("Error", "Please fill in all fields");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const token = await AsyncStorage.getItem("token") || await AsyncStorage.getItem("user_token");
+      
+      await axios.post(`${BASE_URL}/fields`, {
+        user_id: userId,
+        name: fieldForm.name,
+        area: parseFloat(fieldForm.area),
+        crop_type: fieldForm.crop_type,
+        location: fieldForm.location
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      // Reload dashboard data immediately
+      await loadDashboardData();
+      
+      Alert.alert("Success", "Field added successfully!", [
+        {
+          text: "View Fields",
+          onPress: () => {
+            setShowFieldForm(false);
+            setFieldForm({ name: "", area: "", crop_type: "", location: "" });
+            router.push("/fields");
+          }
+        },
+        {
+          text: "Stay Here",
+          onPress: () => {
+            setShowFieldForm(false);
+            setFieldForm({ name: "", area: "", crop_type: "", location: "" });
+          },
+          style: "cancel"
+        }
+      ]);
+    } catch (error: any) {
+      Alert.alert("Error", error.response?.data?.detail || "Failed to add field");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const submitHarvest = async () => {
+    if (!harvestForm.field_id || !harvestForm.crop_type || !harvestForm.harvest_date) {
+      Alert.alert("Error", "Please fill in all fields");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const token = await AsyncStorage.getItem("token") || await AsyncStorage.getItem("user_token");
+      
+      await axios.post(`${BASE_URL}/harvests`, {
+        farmer_id: userId,
+        field_id: parseInt(harvestForm.field_id),
+        crop_type: harvestForm.crop_type,
+        harvest_date: harvestForm.harvest_date,
+        status: "upcoming"
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      // Reload dashboard data immediately
+      await loadDashboardData();
+      
+      Alert.alert("Success", "Harvest scheduled successfully!", [
+        {
+          text: "View Harvests",
+          onPress: () => {
+            setShowHarvestForm(false);
+            setHarvestForm({ field_id: "", crop_type: "", harvest_date: "" });
+            router.push("/harvests");
+          }
+        },
+        {
+          text: "Stay Here",
+          onPress: () => {
+            setShowHarvestForm(false);
+            setHarvestForm({ field_id: "", crop_type: "", harvest_date: "" });
+          },
+          style: "cancel"
+        }
+      ]);
+    } catch (error: any) {
+      Alert.alert("Error", error.response?.data?.detail || "Failed to schedule harvest");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const submitPest = async () => {
+    if (!pestForm.field_id || !pestForm.pest_type || !pestForm.severity || !pestForm.description) {
+      Alert.alert("Error", "Please fill in all fields");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const token = await AsyncStorage.getItem("token") || await AsyncStorage.getItem("user_token");
+      
+      await axios.post(`${BASE_URL}/pest-alerts`, {
+        farmer_id: userId,
+        field_id: parseInt(pestForm.field_id),
+        pest_type: pestForm.pest_type,
+        severity: pestForm.severity.toLowerCase(),
+        description: pestForm.description
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      // Reload dashboard data immediately
+      await loadDashboardData();
+      
+      Alert.alert("Success", "Pest reported successfully!", [
+        {
+          text: "View Pest Alerts",
+          onPress: () => {
+            setShowPestForm(false);
+            setPestForm({ field_id: "", pest_type: "", severity: "", description: "" });
+            router.push("/pests");
+          }
+        },
+        {
+          text: "Stay Here",
+          onPress: () => {
+            setShowPestForm(false);
+            setPestForm({ field_id: "", pest_type: "", severity: "", description: "" });
+          },
+          style: "cancel"
+        }
+      ]);
+    } catch (error: any) {
+      Alert.alert("Error", error.response?.data?.detail || "Failed to report pest");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Format recent complaints
+  const recentComplaints: RecentComplaint[] = complaints.slice(0, 3).map(c => {
+    let statusColor = "#8B5A2B";
+    let icon: any = "alert-circle";
+    
+    if (c.status?.toLowerCase() === "resolved") {
+      statusColor = "#4CAF50";
+      icon = "check-circle";
+    } else if (c.status?.toLowerCase() === "in progress") {
+      statusColor = "#2196F3";
+      icon = "progress-clock";
+    }
+    
+    return {
+      id: c.id,
+      type: c.type,
+      field: c.location || "Unknown",
+      status: c.status || "Pending",
+      date: formatTimeAgo(c.created_at),
+      icon,
+      statusColor
+    };
+  });
+
+  const pendingComplaints = complaints.filter(c => c.status?.toLowerCase() === "pending").length;
+  const newPests = pests.filter(p => p.severity?.toLowerCase() === "high").length;
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#2E7D32" />
+        <Text style={styles.loadingText}>Loading your farm data...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#2E7D32" />
       
-      {/* Header with Notification Bell */}
+      {/* Header */}
       <View style={styles.header}>
         <View>
           <Text style={styles.greeting}>Welcome back,</Text>
@@ -240,7 +691,7 @@ export default function FarmerDashboard() {
               </View>
             )}
           </TouchableOpacity>
-          <TouchableOpacity style={styles.profileButton}>
+          <TouchableOpacity style={styles.profileButton} onPress={() => router.push("/profile" as any)}>
             <MaterialCommunityIcons name="account-circle" size={40} color="#FFF" />
           </TouchableOpacity>
         </View>
@@ -322,31 +773,31 @@ export default function FarmerDashboard() {
         <View style={styles.miniCardsGrid}>
           <MiniCard 
             title="Fields" 
-            value={fields} 
+            value={fields.length} 
             icon="terrain" 
             color="#2E7D32"
-            onPress={() => handleCardPress("Fields")}
+            onPress={() => router.push("/fields")}
           />
           <MiniCard 
             title="Harvests" 
-            value={harvests} 
+            value={harvests.length} 
             icon="calendar-check" 
             color="#8B5A2B"
-            onPress={() => handleCardPress("Harvests")}
+            onPress={() => router.push("/harvests")}
           />
           <MiniCard 
             title="Pests" 
-            value={pests} 
+            value={pests.length} 
             icon="bug" 
             color="#8B5A2B"
-            onPress={() => handleCardPress("Pests")}
+            onPress={() => router.push("/pests")}
           />
           <MiniCard 
             title="Complaints" 
-            value={complaints} 
+            value={complaints.length} 
             icon="alert-circle" 
             color="#2E7D32"
-            onPress={() => handleCardPress("Complaints")}
+            onPress={() => router.push("/complaint")}
           />
         </View>
 
@@ -357,105 +808,313 @@ export default function FarmerDashboard() {
             label="Add Field" 
             icon="terrain" 
             color="#2E7D32"
-            onPress={() => handleQuickAction("Add Field")}
+            onPress={() => setShowFieldForm(true)}
           />
           <QuickActionButton 
             label="Schedule Harvest" 
             icon="calendar-plus" 
             color="#8B5A2B"
-            onPress={() => handleQuickAction("Schedule Harvest")}
+            onPress={() => setShowHarvestForm(true)}
           />
           <QuickActionButton 
             label="Report Pest" 
             icon="bug" 
             color="#2E7D32"
-            onPress={() => handleQuickAction("Report Pest")}
+            onPress={() => setShowPestForm(true)}
           />
           <QuickActionButton 
             label="New Complaint" 
             icon="alert" 
             color="#8B5A2B"
-            onPress={() => handleQuickAction("New Complaint")}
+            onPress={() => router.push("/complaint")}
           />
         </View>
 
-        {/* Recent Complaints with notification */}
-        <View style={styles.recentSection}>
-          <View style={styles.recentHeader}>
-            <SectionTitle title="Recent Complaints" notificationCount={pendingComplaints} />
-            <TouchableOpacity>
-              <Text style={styles.viewAllLink}>View All</Text>
-            </TouchableOpacity>
-          </View>
-          {recentComplaints.map(item => (
-            <RecentItem 
-              key={item.id}
-              icon={item.icon}
-              title={item.type}
-              subtitle={`${item.field} • ${item.date}`}
-              status={item.status}
-              statusColor={item.statusColor}
-            />
-          ))}
-        </View>
-
-        {/* Recent Harvests with notification */}
-        <View style={styles.recentSection}>
-          <View style={styles.recentHeader}>
-            <SectionTitle title="Recent Harvests" notificationCount={upcomingHarvests} />
-            <TouchableOpacity>
-              <Text style={styles.viewAllLink}>View All</Text>
-            </TouchableOpacity>
-          </View>
-          {recentHarvests.map(item => (
-            <RecentItem 
-              key={item.id}
-              icon={item.icon}
-              title={item.crop}
-              subtitle={`${item.field} • ${item.amount}`}
-              status={item.date}
-              statusColor={item.statusColor}
-            />
-          ))}
-        </View>
-
-        {/* Alerts Section with notification */}
-        <View style={styles.recentSection}>
-          <View style={styles.recentHeader}>
-            <SectionTitle title="Active Alerts" notificationCount={newPests} />
-            <TouchableOpacity>
-              <Text style={styles.viewAllLink}>View All</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.alertCard}>
-            <View style={styles.alertContent}>
-              <MaterialCommunityIcons name="bug" size={24} color="#8B5A2B" />
-              <View style={styles.alertTextContainer}>
-                <Text style={styles.alertTitle}>New Pest Detected</Text>
-                <Text style={styles.alertSubtitle}>Field B • 2 hours ago</Text>
-              </View>
+        {/* Recent Complaints */}
+        {recentComplaints.length > 0 && (
+          <View style={styles.recentSection}>
+            <View style={styles.recentHeader}>
+              <SectionTitle title="Recent Complaints" notificationCount={pendingComplaints} />
+              <TouchableOpacity onPress={() => router.push("/complaint")}>
+                <Text style={styles.viewAllLink}>View All</Text>
+              </TouchableOpacity>
             </View>
-            <View style={[styles.alertBadge, { backgroundColor: "#8B5A2B" }]}>
-              <Text style={styles.alertBadgeText}>New</Text>
-            </View>
+            {recentComplaints.map(item => (
+              <RecentItem 
+                key={item.id}
+                icon={item.icon}
+                title={item.type}
+                subtitle={`${item.field} • ${item.date}`}
+                status={item.status}
+                statusColor={item.statusColor}
+                onPress={() => router.push(`/complaint/${item.id}` as any)}
+              />
+            ))}
           </View>
-          <View style={styles.alertCard}>
-            <View style={styles.alertContent}>
-              <MaterialCommunityIcons name="weather-cloudy" size={24} color="#2E7D32" />
-              <View style={styles.alertTextContainer}>
-                <Text style={styles.alertTitle}>Weather Alert</Text>
-                <Text style={styles.alertSubtitle}>Heavy rain expected • Tomorrow</Text>
-              </View>
-            </View>
-            <View style={[styles.alertBadge, { backgroundColor: "#2E7D32" }]}>
-              <Text style={styles.alertBadgeText}>2</Text>
-            </View>
-          </View>
-        </View>
+        )}
 
         {/* Bottom Padding */}
         <View style={styles.bottomPadding} />
       </ScrollView>
+
+      {/* Add Field Form Modal */}
+      <FormModal
+        visible={showFieldForm}
+        onClose={() => setShowFieldForm(false)}
+        title="Add New Field"
+        loading={submitting}
+      >
+        <View style={styles.formGroup}>
+          <Text style={styles.formLabel}>Field Name</Text>
+          <TextInput
+            style={styles.formInput}
+            value={fieldForm.name}
+            onChangeText={(text) => setFieldForm({...fieldForm, name: text})}
+            placeholder="e.g., Field A"
+            placeholderTextColor="#999"
+            editable={!submitting}
+          />
+        </View>
+        
+        <View style={styles.formGroup}>
+          <Text style={styles.formLabel}>Area (hectares)</Text>
+          <TextInput
+            style={styles.formInput}
+            value={fieldForm.area}
+            onChangeText={(text) => setFieldForm({...fieldForm, area: text})}
+            placeholder="e.g., 5"
+            keyboardType="numeric"
+            placeholderTextColor="#999"
+            editable={!submitting}
+          />
+        </View>
+        
+        <View style={styles.formGroup}>
+          <Text style={styles.formLabel}>Crop Type</Text>
+          <TextInput
+            style={styles.formInput}
+            value={fieldForm.crop_type}
+            onChangeText={(text) => setFieldForm({...fieldForm, crop_type: text})}
+            placeholder="e.g., Maize"
+            placeholderTextColor="#999"
+            editable={!submitting}
+          />
+        </View>
+        
+        <View style={styles.formGroup}>
+          <Text style={styles.formLabel}>Location</Text>
+          <TextInput
+            style={styles.formInput}
+            value={fieldForm.location}
+            onChangeText={(text) => setFieldForm({...fieldForm, location: text})}
+            placeholder="e.g., North Section"
+            placeholderTextColor="#999"
+            editable={!submitting}
+          />
+        </View>
+        
+        <View style={styles.formButtonContainer}>
+          <TouchableOpacity 
+            style={styles.formCancelButton} 
+            onPress={() => setShowFieldForm(false)}
+            disabled={submitting}
+          >
+            <Text style={styles.formCancelButtonText}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.formSubmitButton, submitting && styles.formSubmitButtonDisabled]} 
+            onPress={submitField}
+            disabled={submitting}
+          >
+            {submitting ? (
+              <ActivityIndicator size="small" color="#FFF" />
+            ) : (
+              <Text style={styles.formSubmitButtonText}>Add Field</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </FormModal>
+
+      {/* Schedule Harvest Form Modal */}
+      <FormModal
+        visible={showHarvestForm}
+        onClose={() => setShowHarvestForm(false)}
+        title="Schedule Harvest"
+        loading={submitting}
+      >
+        <View style={styles.formGroup}>
+          <Text style={styles.formLabel}>Select Field</Text>
+          <View style={styles.pickerContainer}>
+            {fields.map((field) => (
+              <TouchableOpacity
+                key={field.id}
+                style={[
+                  styles.pickerOption,
+                  harvestForm.field_id === field.id.toString() && styles.pickerOptionSelected
+                ]}
+                onPress={() => setHarvestForm({...harvestForm, field_id: field.id.toString()})}
+                disabled={submitting}
+              >
+                <Text style={[
+                  styles.pickerOptionText,
+                  harvestForm.field_id === field.id.toString() && styles.pickerOptionTextSelected
+                ]}>
+                  {field.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+        
+        <View style={styles.formGroup}>
+          <Text style={styles.formLabel}>Crop Type</Text>
+          <TextInput
+            style={styles.formInput}
+            value={harvestForm.crop_type}
+            onChangeText={(text) => setHarvestForm({...harvestForm, crop_type: text})}
+            placeholder="e.g., Maize"
+            placeholderTextColor="#999"
+            editable={!submitting}
+          />
+        </View>
+        
+        <View style={styles.formGroup}>
+          <Text style={styles.formLabel}>Harvest Date</Text>
+          <TextInput
+            style={styles.formInput}
+            value={harvestForm.harvest_date}
+            onChangeText={(text) => setHarvestForm({...harvestForm, harvest_date: text})}
+            placeholder="YYYY-MM-DD"
+            placeholderTextColor="#999"
+            editable={!submitting}
+          />
+        </View>
+        
+        <View style={styles.formButtonContainer}>
+          <TouchableOpacity 
+            style={styles.formCancelButton} 
+            onPress={() => setShowHarvestForm(false)}
+            disabled={submitting}
+          >
+            <Text style={styles.formCancelButtonText}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.formSubmitButton, submitting && styles.formSubmitButtonDisabled]} 
+            onPress={submitHarvest}
+            disabled={submitting}
+          >
+            {submitting ? (
+              <ActivityIndicator size="small" color="#FFF" />
+            ) : (
+              <Text style={styles.formSubmitButtonText}>Schedule</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </FormModal>
+
+      {/* Report Pest Form Modal */}
+      <FormModal
+        visible={showPestForm}
+        onClose={() => setShowPestForm(false)}
+        title="Report Pest"
+        loading={submitting}
+      >
+        <View style={styles.formGroup}>
+          <Text style={styles.formLabel}>Select Field</Text>
+          <View style={styles.pickerContainer}>
+            {fields.map((field) => (
+              <TouchableOpacity
+                key={field.id}
+                style={[
+                  styles.pickerOption,
+                  pestForm.field_id === field.id.toString() && styles.pickerOptionSelected
+                ]}
+                onPress={() => setPestForm({...pestForm, field_id: field.id.toString()})}
+                disabled={submitting}
+              >
+                <Text style={[
+                  styles.pickerOptionText,
+                  pestForm.field_id === field.id.toString() && styles.pickerOptionTextSelected
+                ]}>
+                  {field.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+        
+        <View style={styles.formGroup}>
+          <Text style={styles.formLabel}>Pest Type</Text>
+          <TextInput
+            style={styles.formInput}
+            value={pestForm.pest_type}
+            onChangeText={(text) => setPestForm({...pestForm, pest_type: text})}
+            placeholder="e.g., Aphids, Armyworms"
+            placeholderTextColor="#999"
+            editable={!submitting}
+          />
+        </View>
+        
+        <View style={styles.formGroup}>
+          <Text style={styles.formLabel}>Severity</Text>
+          <View style={styles.pickerContainer}>
+            {["Low", "Medium", "High"].map((severity) => (
+              <TouchableOpacity
+                key={severity}
+                style={[
+                  styles.pickerOption,
+                  pestForm.severity === severity && styles.pickerOptionSelected
+                ]}
+                onPress={() => setPestForm({...pestForm, severity})}
+                disabled={submitting}
+              >
+                <Text style={[
+                  styles.pickerOptionText,
+                  pestForm.severity === severity && styles.pickerOptionTextSelected
+                ]}>
+                  {severity}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+        
+        <View style={styles.formGroup}>
+          <Text style={styles.formLabel}>Description</Text>
+          <TextInput
+            style={[styles.formInput, styles.textArea]}
+            value={pestForm.description}
+            onChangeText={(text) => setPestForm({...pestForm, description: text})}
+            placeholder="Describe the pest issue in detail..."
+            placeholderTextColor="#999"
+            multiline
+            numberOfLines={4}
+            textAlignVertical="top"
+            editable={!submitting}
+          />
+        </View>
+        
+        <View style={styles.formButtonContainer}>
+          <TouchableOpacity 
+            style={styles.formCancelButton} 
+            onPress={() => setShowPestForm(false)}
+            disabled={submitting}
+          >
+            <Text style={styles.formCancelButtonText}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.formSubmitButton, submitting && styles.formSubmitButtonDisabled]} 
+            onPress={submitPest}
+            disabled={submitting}
+          >
+            {submitting ? (
+              <ActivityIndicator size="small" color="#FFF" />
+            ) : (
+              <Text style={styles.formSubmitButtonText}>Report</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </FormModal>
     </View>
   );
 }
@@ -553,6 +1212,17 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
     paddingHorizontal: 20,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#F8F5F0",
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: "#2E7D32",
   },
   sectionTitleContainer: {
     flexDirection: "row",
@@ -710,52 +1380,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "500",
   },
-  alertCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#FFF",
-    borderRadius: 12,
-    padding: 15,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: "#E8E0D5",
-    shadowColor: "#8B5A2B",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  alertContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
-  alertTextContainer: {
-    marginLeft: 12,
-    flex: 1,
-  },
-  alertTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#2E7D32",
-  },
-  alertSubtitle: {
-    fontSize: 12,
-    color: "#8B5A2B",
-    marginTop: 2,
-  },
-  alertBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginLeft: 10,
-  },
-  alertBadgeText: {
-    color: "#FFF",
-    fontSize: 12,
-    fontWeight: "600",
-  },
   bottomPadding: {
     height: 20,
   },
@@ -857,5 +1481,121 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#999",
     marginTop: 10,
+  },
+  // Form Modal Styles
+  formModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  formModalContent: {
+    backgroundColor: "#FFF",
+    borderRadius: 20,
+    width: "90%",
+    maxHeight: "80%",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  formModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E8E0D5",
+  },
+  formModalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#2E7D32",
+  },
+  formModalBody: {
+    padding: 20,
+  },
+  formGroup: {
+    marginBottom: 20,
+  },
+  formLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#2E7D32",
+    marginBottom: 8,
+  },
+  formInput: {
+    backgroundColor: "#F5F5F5",
+    borderRadius: 10,
+    padding: 12,
+    fontSize: 15,
+    color: "#333",
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
+  },
+  textArea: {
+    minHeight: 100,
+    textAlignVertical: "top",
+  },
+  formButtonContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 10,
+    marginTop: 10,
+  },
+  formCancelButton: {
+    flex: 1,
+    backgroundColor: "#F5F5F5",
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
+  },
+  formCancelButtonText: {
+    fontSize: 15,
+    color: "#666",
+    fontWeight: "500",
+  },
+  formSubmitButton: {
+    flex: 1,
+    backgroundColor: "#2E7D32",
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  formSubmitButtonDisabled: {
+    backgroundColor: "#81C784",
+    opacity: 0.7,
+  },
+  formSubmitButtonText: {
+    fontSize: 15,
+    color: "#FFF",
+    fontWeight: "600",
+  },
+  pickerContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  pickerOption: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#2E7D32",
+    backgroundColor: "#FFF",
+  },
+  pickerOptionSelected: {
+    backgroundColor: "#2E7D32",
+  },
+  pickerOptionText: {
+    fontSize: 14,
+    color: "#2E7D32",
+  },
+  pickerOptionTextSelected: {
+    color: "#FFF",
   },
 });

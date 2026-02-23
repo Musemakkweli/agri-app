@@ -1,16 +1,22 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import axios from "axios";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
-    KeyboardTypeOptions,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  KeyboardTypeOptions,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
+import BASE_URL from "../services/api";
 
 // Define types for InputField props
 interface InputFieldProps {
@@ -52,36 +58,153 @@ const InputField: React.FC<InputFieldProps> = ({
 
 // Define type for form data
 interface FormData {
-  fullName: string;
+  full_name: string;
   email: string;
   password: string;
   confirmPassword: string;
   phone: string;
 }
 
+interface RegisterResponse {
+  id: number;
+  full_name: string;
+  email: string;
+  phone: string;
+  role: string;
+  is_approved: boolean;
+  is_profile_completed: boolean;
+  message?: string;
+}
+
 export default function RegisterScreen() {
   const [formData, setFormData] = useState<FormData>({
-    fullName: "",
+    full_name: "",
     email: "",
     password: "",
     confirmPassword: "",
     phone: "",
   });
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   
   // Role is fixed to farmer
   const role = "farmer";
 
   const handleChange = (name: keyof FormData, value: string) => {
     setFormData(prev => ({ ...prev, [name]: value }));
+    // Clear error when user types
+    if (errorMessage) setErrorMessage("");
   };
 
-  const handleRegister = () => {
-    // Just for design - no actual registration
-    alert("Registration button pressed - Design only");
+  const validateForm = (): boolean => {
+    // Check all fields
+    if (!formData.full_name.trim()) {
+      Alert.alert("Validation Error", "Please enter your full name");
+      return false;
+    }
+    
+    if (!formData.email.trim()) {
+      Alert.alert("Validation Error", "Please enter your email");
+      return false;
+    }
+    
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      Alert.alert("Validation Error", "Please enter a valid email address");
+      return false;
+    }
+    
+    if (!formData.password) {
+      Alert.alert("Validation Error", "Please enter a password");
+      return false;
+    }
+    
+    if (formData.password.length < 6) {
+      Alert.alert("Validation Error", "Password must be at least 6 characters");
+      return false;
+    }
+    
+    if (formData.password !== formData.confirmPassword) {
+      Alert.alert("Validation Error", "Passwords do not match");
+      return false;
+    }
+    
+    if (!formData.phone.trim()) {
+      Alert.alert("Validation Error", "Please enter your phone number");
+      return false;
+    }
+    
+    return true;
+  };
+
+  const handleRegister = async () => {
+    if (!validateForm()) return;
+
+    setLoading(true);
+    setErrorMessage("");
+
+    try {
+      // Prepare data for API - remove confirmPassword
+      const { confirmPassword, ...apiData } = formData;
+      
+      const response = await axios.post<RegisterResponse>(`${BASE_URL}/register`, {
+        ...apiData,
+        role: "farmer", // Force role to be farmer
+      });
+
+      const { id, full_name, email, phone, message } = response.data;
+
+      // Store user data in AsyncStorage
+      await AsyncStorage.setItem("temp_user_id", id.toString());
+      await AsyncStorage.setItem("temp_user_data", JSON.stringify({
+        id,
+        full_name,
+        email,
+        phone,
+        role: "farmer"
+      }));
+
+      // Show success message
+      Alert.alert(
+        "Registration Successful", 
+        message || "Account created successfully! Please complete your profile.",
+        [
+          {
+            text: "Continue",
+            onPress: () => router.push("/completion")
+          }
+        ]
+      );
+      
+    } catch (error: any) {
+      console.error("Registration error:", error);
+      
+      // Handle different error types
+      if (error.response) {
+        // Server responded with error
+        const errorMsg = error.response.data?.detail || 
+                        error.response.data?.message || 
+                        "Registration failed. Please try again.";
+        setErrorMessage(errorMsg);
+        Alert.alert("Registration Failed", errorMsg);
+      } else if (error.request) {
+        // Request made but no response
+        Alert.alert("Network Error", "Unable to connect to server. Please check your internet connection.");
+      } else {
+        // Something else happened
+        Alert.alert("Error", "An unexpected error occurred. Please try again.");
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
       <StatusBar barStyle="dark-content" backgroundColor="#f0fff4" />
       
       {/* Header */}
@@ -104,16 +227,24 @@ export default function RegisterScreen() {
         <View style={styles.titleContainer}>
           <MaterialCommunityIcons name="account-plus" size={50} color="#2E7D32" />
           <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Join the farming community</Text>
+          <Text style={styles.subtitle}>Join as a farmer</Text>
         </View>
+
+        {/* Error Message */}
+        {errorMessage ? (
+          <View style={styles.errorContainer}>
+            <MaterialCommunityIcons name="alert-circle" size={20} color="#c62828" />
+            <Text style={styles.errorText}>{errorMessage}</Text>
+          </View>
+        ) : null}
 
         {/* Form */}
         <View style={styles.formContainer}>
           <InputField
             label="Full Name"
             icon="account"
-            value={formData.fullName}
-            onChangeText={(value) => handleChange("fullName", value)}
+            value={formData.full_name}
+            onChangeText={(value) => handleChange("full_name", value)}
             placeholder="John Doe"
           />
 
@@ -153,7 +284,7 @@ export default function RegisterScreen() {
             placeholder="+250 788 123 456"
           />
 
-          {/* Role Selection - Under phone number */}
+          {/* Role Selection - Fixed to Farmer only */}
           <View style={styles.inputWrapper}>
             <Text style={styles.inputLabel}>Role</Text>
             <View style={styles.roleContainer}>
@@ -180,17 +311,24 @@ export default function RegisterScreen() {
           <View style={styles.infoBox}>
             <MaterialCommunityIcons name="information" size={20} color="#2E7D32" />
             <Text style={styles.infoText}>
-              You'll complete your farm details after registration
+              After registration, you'll complete your farm profile
             </Text>
           </View>
 
           {/* Register Button */}
           <TouchableOpacity 
-            style={styles.registerButton}
-            onPress={() => router.push("/login")}
+            style={[styles.registerButton, loading && styles.registerButtonDisabled]}
+            onPress={handleRegister}
+            disabled={loading}
           >
-            <Text style={styles.registerButtonText}>Create Account</Text>
-            <MaterialCommunityIcons name="arrow-right" size={20} color="#FFF" />
+            {loading ? (
+              <Text style={styles.registerButtonText}>Creating Account...</Text>
+            ) : (
+              <>
+                <Text style={styles.registerButtonText}>Create Account</Text>
+                <MaterialCommunityIcons name="arrow-right" size={20} color="#FFF" />
+              </>
+            )}
           </TouchableOpacity>
 
           {/* Login Link */}
@@ -207,7 +345,7 @@ export default function RegisterScreen() {
           Join 500+ farmers managing their farms with AgroCare
         </Text>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -263,6 +401,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#666",
     marginTop: 5,
+  },
+  errorContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ffebee",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 20,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: "#c62828",
+  },
+  errorText: {
+    fontSize: 13,
+    color: "#c62828",
+    flex: 1,
   },
   formContainer: {
     backgroundColor: "#FFF",
@@ -374,6 +528,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 5,
     elevation: 5,
+  },
+  registerButtonDisabled: {
+    opacity: 0.7,
+    backgroundColor: "#81C784",
   },
   registerButtonText: {
     color: "#FFF",

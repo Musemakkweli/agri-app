@@ -1,40 +1,180 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import axios from "axios";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
+import BASE_URL from "../services/api";
+
+// Define types for API response
+interface LoginResponse {
+  user: User;
+  access_token: string;
+  message: string;
+}
+
+interface User {
+  id: number;
+  role: string;
+  is_approved: boolean;
+  is_profile_completed: boolean;
+  email?: string;
+  phone?: string;
+  full_name?: string;
+}
 
 export default function LoginScreen() {
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState(false);
 
-  const handleLogin = () => {
+  // ==============================
+  // Redirect Logic - FARMER ONLY
+  // ==============================
+  const redirectUser = (user: User) => {
+    if (!user.is_approved) {
+      Alert.alert("Account Not Approved", "Your account is not approved yet. Please wait for admin approval.");
+      return;
+    }
+
+    if (!user.is_profile_completed) {
+      router.push("/(tabs)/dashboard");
+      return;
+    }
+
+    // ONLY FARMERS CAN LOGIN HERE
+    if (user.role === "farmer") {
+      router.push("/(tabs)/dashboard");
+    } else {
+      Alert.alert(
+        "Access Denied", 
+        "This app is for farmers only. Please use the web version for other roles."
+      );
+      AsyncStorage.multiRemove(["token", "user_token", "user_data", "user", "user_id", "user_role"]);
+    }
+  };
+
+  // ==============================
+  // Fetch latest profile after login - FIXED VERSION
+  // ==============================
+  const fetchLatestUser = async (user: User, token: string): Promise<User> => {
+    try {
+      // Only fetch for farmers
+      if (user.role === "farmer") {
+        const endpoint = `${BASE_URL}/profile/farmer/${user.id}`;
+        const response = await axios.get(endpoint, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        
+        // Create base user object
+        const updatedUser: User = {
+          id: user.id,
+          role: user.role,
+          is_approved: user.is_approved,
+          is_profile_completed: user.is_profile_completed,
+          email: user.email,
+          phone: user.phone,
+          full_name: user.full_name,
+        };
+        
+        // If response.data exists and is an object, merge it manually
+        if (response.data && typeof response.data === 'object') {
+          const data = response.data as any;
+          
+          if (data.email) updatedUser.email = data.email;
+          if (data.phone) updatedUser.phone = data.phone;
+          if (data.full_name) updatedUser.full_name = data.full_name;
+          if (data.is_approved !== undefined) updatedUser.is_approved = data.is_approved;
+          if (data.is_profile_completed !== undefined) updatedUser.is_profile_completed = data.is_profile_completed;
+        }
+        
+        return updatedUser;
+      }
+      return user;
+    } catch (err) {
+      console.error("Failed to fetch latest user profile:", err);
+      return user;
+    }
+  };
+
+  // ==============================
+  // Handle login submit
+  // ==============================
+  const handleLogin = async () => {
     // Basic validation
-    if (!email || !password) {
+    if (!identifier || !password) {
       Alert.alert("Error", "Please fill in all fields");
       return;
     }
 
+    setMessage("");
+    setError(false);
     setLoading(true);
-    
-    // Simulate API call
-    setTimeout(() => {
+
+    try {
+      const response = await axios.post(`${BASE_URL}/login`, {
+        identifier,
+        password,
+      });
+      
+      const { user, access_token, message: backendMessage } = response.data as LoginResponse;
+
+      // CHECK IF USER IS FARMER
+      if (user.role !== "farmer") {
+        setError(true);
+        setMessage("Access denied. This app is for farmers only.");
+        Alert.alert(
+          "Access Denied", 
+          `You are registered as a ${user.role}. Please use the web version for your role.`
+        );
+        setLoading(false);
+        return;
+      }
+
+      // Save token
+      await AsyncStorage.setItem("token", access_token);
+      await AsyncStorage.setItem("user_token", access_token);
+      await AsyncStorage.setItem("user_id", user.id.toString());
+      await AsyncStorage.setItem("user_role", user.role);
+
+      // Fetch latest user data
+      const latestUser = await fetchLatestUser(user, access_token);
+      
+      // Save user data
+      await AsyncStorage.setItem("user_data", JSON.stringify(latestUser));
+      await AsyncStorage.setItem("user", JSON.stringify(latestUser));
+
+      setMessage(backendMessage || "Login successful!");
+      
+      // Redirect farmer to dashboard
+      redirectUser(latestUser);
+      
+    } catch (err: any) {
+      console.error(err);
+      
+      // Handle error
+      const errorMsg = err.response?.data?.detail || "Login failed. Check your credentials.";
+      
+      setError(true);
+      setMessage(errorMsg);
+      Alert.alert("Login Failed", errorMsg);
+    } finally {
       setLoading(false);
-      // Navigate to main app (you can change this to your dashboard)
-      router.push("/dashboard"); // ✅ correct
-    }, 1500);
+    }
   };
 
   const goToRegister = () => {
@@ -64,13 +204,20 @@ export default function LoginScreen() {
         {/* Header */}
         <View style={styles.header}>
           <MaterialCommunityIcons name="leaf" size={80} color="#2E7D32" />
-          <Text style={styles.title}>Welcome Back</Text>
-          <Text style={styles.subtitle}>Login to your account</Text>
+          <Text style={styles.title}>Farmer Login</Text>
+          <Text style={styles.subtitle}>Access your farm dashboard</Text>
         </View>
+
+        {/* Message Display */}
+        {message ? (
+          <Text style={[styles.message, error ? styles.errorMessage : styles.successMessage]}>
+            {message}
+          </Text>
+        ) : null}
 
         {/* Form */}
         <View style={styles.form}>
-          {/* Email Input */}
+          {/* Email/Phone Input */}
           <View style={styles.inputContainer}>
             <MaterialCommunityIcons
               name="email-outline"
@@ -80,13 +227,12 @@ export default function LoginScreen() {
             />
             <TextInput
               style={styles.input}
-              placeholder="Email"
+              placeholder="Email or Phone"
               placeholderTextColor="#999"
-              value={email}
-              onChangeText={setEmail}
+              value={identifier}
+              onChangeText={setIdentifier}
               keyboardType="email-address"
               autoCapitalize="none"
-              autoComplete="email"
             />
           </View>
 
@@ -134,7 +280,7 @@ export default function LoginScreen() {
               <Text style={styles.loginButtonText}>Logging in...</Text>
             ) : (
               <>
-                <Text style={styles.loginButtonText}>Login</Text>
+                <Text style={styles.loginButtonText}>Login as Farmer</Text>
                 <MaterialCommunityIcons
                   name="arrow-right"
                   size={20}
@@ -146,9 +292,9 @@ export default function LoginScreen() {
 
           {/* Register Link */}
           <View style={styles.registerContainer}>
-            <Text style={styles.registerText}>Don't have an account? </Text>
+            <Text style={styles.registerText}>New farmer? </Text>
             <TouchableOpacity onPress={goToRegister}>
-              <Text style={styles.registerLink}>Sign Up</Text>
+              <Text style={styles.registerLink}>Create Account</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -184,7 +330,7 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: "center",
-    marginBottom: 40,
+    marginBottom: 30,
   },
   title: {
     fontSize: 32,
@@ -196,6 +342,20 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     color: "#666",
+  },
+  message: {
+    textAlign: "center",
+    marginBottom: 15,
+    padding: 10,
+    borderRadius: 8,
+  },
+  successMessage: {
+    backgroundColor: "#e8f5e9",
+    color: "#2E7D32",
+  },
+  errorMessage: {
+    backgroundColor: "#ffebee",
+    color: "#c62828",
   },
   form: {
     width: "100%",

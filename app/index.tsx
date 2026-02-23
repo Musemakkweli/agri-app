@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 
+
 export default function LandingScreen() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const bounceAnim = useRef(new Animated.Value(0)).current;
