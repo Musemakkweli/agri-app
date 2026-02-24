@@ -4,22 +4,46 @@ import axios from "axios";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    Modal,
-    RefreshControl,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import BASE_URL from "../services/api"; // ✅ Correct for standalone screens
+import BASE_URL from "../services/api";
 
 const { width } = Dimensions.get("window");
+
+// Simplified color palette - reduced from 8+ colors to 5
+const COLORS = {
+  primary: "#2E7D32",      // Green - main brand color
+  secondary: "#8B5A2B",    // Brown - accent color
+  text: {
+    primary: "#333333",    // Dark gray - main text
+    secondary: "#666666",  // Medium gray - secondary text
+    light: "#999999",      // Light gray - placeholder text
+  },
+  background: {
+    main: "#F8F5F0",       // Off-white - main background
+    card: "#FFFFFF",       // White - card background
+    overlay: "rgba(0,0,0,0.5)", // Semi-transparent black
+  },
+  border: "#E8E0D5",       // Light brown - borders
+  white: "#FFFFFF",
+  black: "#000000",
+  // Semantic colors - only used for specific meanings
+  danger: "#D32F2F",       // Red - delete actions
+  info: "#2196F3",         // Blue - view actions
+  success: "#4CAF50",      // Green - edit/save actions
+  warning: "#FF9800",      // Orange - download actions
+} as const;
 
 interface Field {
   id: number;
@@ -35,44 +59,44 @@ const FieldCard = ({ field, onView, onEdit, onDelete, onDownload }: any) => (
   <View style={styles.card}>
     <View style={styles.cardHeader}>
       <View style={styles.cardTitleContainer}>
-        <MaterialCommunityIcons name="terrain" size={24} color="#2E7D32" />
+        <MaterialCommunityIcons name="terrain" size={24} color={COLORS.primary} />
         <Text style={styles.cardTitle}>{field.name}</Text>
       </View>
       <TouchableOpacity style={styles.menuButton}>
-        <MaterialCommunityIcons name="dots-vertical" size={24} color="#666" />
+        <MaterialCommunityIcons name="dots-vertical" size={24} color={COLORS.text.secondary} />
       </TouchableOpacity>
     </View>
 
     <View style={styles.cardContent}>
       <View style={styles.infoRow}>
-        <MaterialCommunityIcons name="ruler" size={16} color="#8B5A2B" />
+        <MaterialCommunityIcons name="ruler" size={16} color={COLORS.secondary} />
         <Text style={styles.infoText}>Area: {field.area || '-'} ha</Text>
       </View>
       <View style={styles.infoRow}>
-        <MaterialCommunityIcons name="sprout" size={16} color="#8B5A2B" />
+        <MaterialCommunityIcons name="sprout" size={16} color={COLORS.secondary} />
         <Text style={styles.infoText}>Crop: {field.crop_type || '-'}</Text>
       </View>
       <View style={styles.infoRow}>
-        <MaterialCommunityIcons name="map-marker" size={16} color="#8B5A2B" />
+        <MaterialCommunityIcons name="map-marker" size={16} color={COLORS.secondary} />
         <Text style={styles.infoText}>Location: {field.location || '-'}</Text>
       </View>
     </View>
 
     <View style={styles.cardActions}>
       <TouchableOpacity style={styles.actionButton} onPress={onView}>
-        <MaterialCommunityIcons name="eye" size={20} color="#2196F3" />
+        <MaterialCommunityIcons name="eye" size={20} color={COLORS.info} />
         <Text style={styles.actionText}>View</Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.actionButton} onPress={onEdit}>
-        <MaterialCommunityIcons name="pencil" size={20} color="#4CAF50" />
+        <MaterialCommunityIcons name="pencil" size={20} color={COLORS.success} />
         <Text style={styles.actionText}>Edit</Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.actionButton} onPress={onDelete}>
-        <MaterialCommunityIcons name="delete" size={20} color="#F44336" />
+        <MaterialCommunityIcons name="delete" size={20} color={COLORS.danger} />
         <Text style={styles.actionText}>Delete</Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.actionButton} onPress={onDownload}>
-        <MaterialCommunityIcons name="download" size={20} color="#FF9800" />
+        <MaterialCommunityIcons name="download" size={20} color={COLORS.warning} />
         <Text style={styles.actionText}>CSV</Text>
       </TouchableOpacity>
     </View>
@@ -92,7 +116,7 @@ const CustomModal = ({ visible, title, children, onClose, onConfirm }: any) => (
         <View style={styles.modalHeader}>
           <Text style={styles.modalTitle}>{title}</Text>
           <TouchableOpacity onPress={onClose}>
-            <MaterialCommunityIcons name="close" size={24} color="#2E7D32" />
+            <MaterialCommunityIcons name="close" size={24} color={COLORS.primary} />
           </TouchableOpacity>
         </View>
         <View style={styles.modalBody}>
@@ -232,8 +256,6 @@ export default function FieldsScreen() {
   };
 
   const handleDownload = (field: Field) => {
-    const csvContent = `Name,Area,Crop,Location\n${field.name},${field.area},${field.crop_type},${field.location}`;
-    // In React Native, we'd need to use a file library or share
     Alert.alert("Download", "CSV download feature coming soon!");
   };
 
@@ -250,12 +272,12 @@ export default function FieldsScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#2E7D32" />
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
       
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <MaterialCommunityIcons name="arrow-left" size={24} color="#FFF" />
+          <MaterialCommunityIcons name="arrow-left" size={24} color={COLORS.white} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>My Fields</Text>
         <TouchableOpacity onPress={() => {
@@ -263,7 +285,7 @@ export default function FieldsScreen() {
           setFormData({ name: "", area: "", crop_type: "", location: "" });
           setShowForm(true);
         }} style={styles.addButton}>
-          <MaterialCommunityIcons name="plus" size={24} color="#FFF" />
+          <MaterialCommunityIcons name="plus" size={24} color={COLORS.white} />
         </TouchableOpacity>
       </View>
 
@@ -281,7 +303,7 @@ export default function FieldsScreen() {
                 {editingField ? "Edit Field" : "Add New Field"}
               </Text>
               <TouchableOpacity onPress={() => setShowForm(false)}>
-                <MaterialCommunityIcons name="close" size={24} color="#2E7D32" />
+                <MaterialCommunityIcons name="close" size={24} color={COLORS.primary} />
               </TouchableOpacity>
             </View>
 
@@ -293,7 +315,7 @@ export default function FieldsScreen() {
                   value={formData.name}
                   onChangeText={(text) => setFormData({ ...formData, name: text })}
                   placeholder="e.g., Field A"
-                  placeholderTextColor="#999"
+                  placeholderTextColor={COLORS.text.light}
                 />
               </View>
 
@@ -305,7 +327,7 @@ export default function FieldsScreen() {
                   onChangeText={(text) => setFormData({ ...formData, area: text })}
                   placeholder="e.g., 5"
                   keyboardType="numeric"
-                  placeholderTextColor="#999"
+                  placeholderTextColor={COLORS.text.light}
                 />
               </View>
 
@@ -316,7 +338,7 @@ export default function FieldsScreen() {
                   value={formData.crop_type}
                   onChangeText={(text) => setFormData({ ...formData, crop_type: text })}
                   placeholder="e.g., Maize"
-                  placeholderTextColor="#999"
+                  placeholderTextColor={COLORS.text.light}
                 />
               </View>
 
@@ -327,7 +349,7 @@ export default function FieldsScreen() {
                   value={formData.location}
                   onChangeText={(text) => setFormData({ ...formData, location: text })}
                   placeholder="e.g., North Section"
-                  placeholderTextColor="#999"
+                  placeholderTextColor={COLORS.text.light}
                 />
               </View>
 
@@ -344,7 +366,7 @@ export default function FieldsScreen() {
                   disabled={submitting}
                 >
                   {submitting ? (
-                    <ActivityIndicator size="small" color="#FFF" />
+                    <ActivityIndicator size="small" color={COLORS.white} />
                   ) : (
                     <Text style={styles.formSubmitButtonText}>
                       {editingField ? "Update" : "Save"}
@@ -365,10 +387,18 @@ export default function FieldsScreen() {
       >
         {viewField && (
           <View>
-            <Text style={styles.detailText}><Text style={styles.detailLabel}>Name:</Text> {viewField.name}</Text>
-            <Text style={styles.detailText}><Text style={styles.detailLabel}>Area:</Text> {viewField.area} ha</Text>
-            <Text style={styles.detailText}><Text style={styles.detailLabel}>Crop:</Text> {viewField.crop_type || '-'}</Text>
-            <Text style={styles.detailText}><Text style={styles.detailLabel}>Location:</Text> {viewField.location || '-'}</Text>
+            <Text style={styles.detailText}>
+              <Text style={styles.detailLabel}>Name:</Text> {viewField.name}
+            </Text>
+            <Text style={styles.detailText}>
+              <Text style={styles.detailLabel}>Area:</Text> {viewField.area} ha
+            </Text>
+            <Text style={styles.detailText}>
+              <Text style={styles.detailLabel}>Crop:</Text> {viewField.crop_type || '-'}
+            </Text>
+            <Text style={styles.detailText}>
+              <Text style={styles.detailLabel}>Location:</Text> {viewField.location || '-'}
+            </Text>
           </View>
         )}
       </CustomModal>
@@ -386,12 +416,12 @@ export default function FieldsScreen() {
       {/* Content */}
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2E7D32" />
+          <ActivityIndicator size="large" color={COLORS.primary} />
           <Text style={styles.loadingText}>Loading fields...</Text>
         </View>
       ) : fields.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <MaterialCommunityIcons name="terrain" size={60} color="#CCC" />
+          <MaterialCommunityIcons name="terrain" size={60} color={COLORS.text.light} />
           <Text style={styles.emptyText}>No fields added yet</Text>
           <TouchableOpacity
             style={styles.emptyButton}
@@ -409,7 +439,12 @@ export default function FieldsScreen() {
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#2E7D32"]} />
+            <RefreshControl 
+              refreshing={refreshing} 
+              onRefresh={onRefresh} 
+              colors={[COLORS.primary]} 
+              tintColor={COLORS.primary}
+            />
           }
         >
           {fields.map((field) => (
@@ -431,10 +466,10 @@ export default function FieldsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8F5F0",
+    backgroundColor: COLORS.background.main,
   },
   header: {
-    backgroundColor: "#2E7D32",
+    backgroundColor: COLORS.primary,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -447,7 +482,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#FFF",
+    color: COLORS.white,
   },
   addButton: {
     padding: 8,
@@ -466,7 +501,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 10,
     fontSize: 16,
-    color: "#2E7D32",
+    color: COLORS.primary,
   },
   emptyContainer: {
     flex: 1,
@@ -476,27 +511,27 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 18,
-    color: "#999",
+    color: COLORS.text.light,
     marginTop: 10,
     marginBottom: 20,
   },
   emptyButton: {
-    backgroundColor: "#2E7D32",
+    backgroundColor: COLORS.primary,
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 8,
   },
   emptyButtonText: {
-    color: "#FFF",
+    color: COLORS.white,
     fontSize: 16,
     fontWeight: "500",
   },
   card: {
-    backgroundColor: "#FFF",
+    backgroundColor: COLORS.background.card,
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
-    shadowColor: "#000",
+    shadowColor: COLORS.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -516,7 +551,7 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#2E7D32",
+    color: COLORS.primary,
   },
   menuButton: {
     padding: 4,
@@ -532,14 +567,14 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: 14,
-    color: "#666",
+    color: COLORS.text.secondary,
     flex: 1,
   },
   cardActions: {
     flexDirection: "row",
     justifyContent: "space-around",
     borderTopWidth: 1,
-    borderTopColor: "#E8E0D5",
+    borderTopColor: COLORS.border,
     paddingTop: 12,
   },
   actionButton: {
@@ -548,21 +583,21 @@ const styles = StyleSheet.create({
   },
   actionText: {
     fontSize: 11,
-    color: "#666",
+    color: COLORS.text.secondary,
   },
   // Modal Styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: COLORS.background.overlay,
     justifyContent: "center",
     alignItems: "center",
   },
   modalContent: {
-    backgroundColor: "#FFF",
+    backgroundColor: COLORS.background.card,
     borderRadius: 20,
     width: "80%",
     maxWidth: 400,
-    shadowColor: "#000",
+    shadowColor: COLORS.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 4,
@@ -574,12 +609,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#E8E0D5",
+    borderBottomColor: COLORS.border,
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#2E7D32",
+    color: COLORS.primary,
   },
   modalBody: {
     padding: 16,
@@ -594,45 +629,45 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: COLORS.background.main,
   },
   modalCancelText: {
-    color: "#666",
+    color: COLORS.text.secondary,
     fontWeight: "500",
   },
   modalConfirmButton: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
-    backgroundColor: "#D32F2F",
+    backgroundColor: COLORS.danger,
   },
   modalConfirmText: {
-    color: "#FFF",
+    color: COLORS.white,
     fontWeight: "500",
   },
   detailText: {
     fontSize: 15,
-    color: "#333",
+    color: COLORS.text.primary,
     marginBottom: 8,
   },
   detailLabel: {
     fontWeight: "bold",
-    color: "#2E7D32",
+    color: COLORS.primary,
   },
   confirmText: {
     fontSize: 16,
-    color: "#333",
+    color: COLORS.text.primary,
     textAlign: "center",
   },
   // Form Modal Styles
   formModalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: COLORS.background.overlay,
     justifyContent: "center",
     alignItems: "center",
   },
   formModalContent: {
-    backgroundColor: "#FFF",
+    backgroundColor: COLORS.background.card,
     borderRadius: 20,
     width: "90%",
     maxHeight: "80%",
@@ -643,12 +678,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#E8E0D5",
+    borderBottomColor: COLORS.border,
   },
   formModalTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#2E7D32",
+    color: COLORS.primary,
   },
   formModalBody: {
     padding: 16,
@@ -659,17 +694,17 @@ const styles = StyleSheet.create({
   formLabel: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#2E7D32",
+    color: COLORS.primary,
     marginBottom: 8,
   },
   formInput: {
-    backgroundColor: "#F5F5F5",
+    backgroundColor: COLORS.background.main,
     borderRadius: 10,
     padding: 12,
     fontSize: 15,
-    color: "#333",
+    color: COLORS.text.primary,
     borderWidth: 1,
-    borderColor: "#E0E0E0",
+    borderColor: COLORS.border,
   },
   formButtonContainer: {
     flexDirection: "row",
@@ -679,32 +714,31 @@ const styles = StyleSheet.create({
   },
   formCancelButton: {
     flex: 1,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: COLORS.background.main,
     paddingVertical: 14,
     borderRadius: 10,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#E0E0E0",
+    borderColor: COLORS.border,
   },
   formCancelButtonText: {
     fontSize: 15,
-    color: "#666",
+    color: COLORS.text.secondary,
     fontWeight: "500",
   },
   formSubmitButton: {
     flex: 1,
-    backgroundColor: "#2E7D32",
+    backgroundColor: COLORS.primary,
     paddingVertical: 14,
     borderRadius: 10,
     alignItems: "center",
   },
   formSubmitButtonDisabled: {
-    backgroundColor: "#81C784",
     opacity: 0.7,
   },
   formSubmitButtonText: {
     fontSize: 15,
-    color: "#FFF",
+    color: COLORS.white,
     fontWeight: "600",
   },
 });

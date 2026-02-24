@@ -1,13 +1,16 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import axios from "axios";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { memo, useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   FlatList,
   Image,
   Modal,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -17,6 +20,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import BASE_URL from "../../services/api";
 
 // Define types
 interface Complaint {
@@ -26,15 +30,9 @@ interface Complaint {
   description: string;
   location: string;
   status: string;
-  image?: string;
+  image?: string | null;
   created_at: string;
-}
-
-interface FormData {
-  title: string;
-  type: string;
-  description: string;
-  location: string;
+  created_by?: number;
 }
 
 // Define icon type for MaterialCommunityIcons
@@ -47,164 +45,450 @@ const complaintTypes: { value: string; label: string; icon: IconName }[] = [
   { value: "Crop Disease", label: "Crop Disease", icon: "leaf-off" },
   { value: "Theft", label: "Theft", icon: "lock-alert" },
   { value: "Weather Damage", label: "Weather Damage", icon: "weather-lightning-rainy" },
-  { value: "Soil Issue", label: "Soil Issue", icon: "earth" }, // Changed from "soil" to "earth"
+  { value: "Soil Issue", label: "Soil Issue", icon: "earth" },
   { value: "Equipment Failure", label: "Equipment Failure", icon: "tractor" },
   { value: "Other", label: "Other Issue", icon: "dots-horizontal" },
 ];
+
+// Status colors - case insensitive
+const getStatusColor = (status: string): { bg: string; text: string; dot: string } => {
+  const statusLower = status.toLowerCase();
+  if (statusLower === "pending") {
+    return { bg: "#FFF3E0", text: "#FF9800", dot: "#FF9800" };
+  } else if (statusLower === "in progress") {
+    return { bg: "#E3F2FD", text: "#2196F3", dot: "#2196F3" };
+  } else if (statusLower === "resolved") {
+    return { bg: "#E8F5E9", text: "#4CAF50", dot: "#4CAF50" };
+  } else if (statusLower === "rejected") {
+    return { bg: "#FFEBEE", text: "#D32F2F", dot: "#D32F2F" };
+  }
+  return { bg: "#F5F5F5", text: "#9E9E9E", dot: "#9E9E9E" };
+};
+
+// Separate Form Component to prevent re-renders
+const ComplaintForm = memo(({ 
+  visible, 
+  onClose, 
+  onSubmit, 
+  editId,
+  initialTitle,
+  initialType,
+  initialDescription,
+  initialLocation,
+  initialImage,
+  submitting 
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onSubmit: (title: string, type: string, description: string, location: string, image: string | null) => void;
+  editId: number | null;
+  initialTitle: string;
+  initialType: string;
+  initialDescription: string;
+  initialLocation: string;
+  initialImage: string | null;
+  submitting: boolean;
+}) => {
+  const [title, setTitle] = useState(initialTitle);
+  const [type, setType] = useState(initialType);
+  const [description, setDescription] = useState(initialDescription);
+  const [location, setLocation] = useState(initialLocation);
+  const [selectedImage, setSelectedImage] = useState<string | null>(initialImage);
+
+  useEffect(() => {
+    setTitle(initialTitle);
+    setType(initialType);
+    setDescription(initialDescription);
+    setLocation(initialLocation);
+    setSelectedImage(initialImage);
+  }, [initialTitle, initialType, initialDescription, initialLocation, initialImage]);
+
+  const pickImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (status !== "granted") {
+        Alert.alert("Permission needed", "Please grant camera roll permissions to upload image.");
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        quality: 0.8,
+        base64: false,
+      });
+
+      if (!result.canceled && result.assets[0].uri) {
+        setSelectedImage(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error("Error picking image:", error);
+      Alert.alert("Error", "Failed to pick image");
+    }
+  };
+
+  const takePhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      
+      if (status !== "granted") {
+        Alert.alert("Permission needed", "Please grant camera permissions to take photo.");
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0].uri) {
+        setSelectedImage(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error("Error taking photo:", error);
+      Alert.alert("Error", "Failed to take photo");
+    }
+  };
+
+  const handleSubmit = () => {
+    onSubmit(title, type, description, location, selectedImage);
+  };
+
+  const handleClose = () => {
+    setTitle("");
+    setType("");
+    setDescription("");
+    setLocation("");
+    setSelectedImage(null);
+    onClose();
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide">
+      <SafeAreaView style={styles.formContainer}>
+        <View style={styles.formHeader}>
+          <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
+            <MaterialCommunityIcons name="close" size={24} color="#FFF" />
+          </TouchableOpacity>
+          <Text style={styles.formTitle}>
+            {editId ? "Update Complaint" : "Report New Issue"}
+          </Text>
+          <View style={{ width: 40 }} />
+        </View>
+
+        <ScrollView style={styles.formContent}>
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>
+              <MaterialCommunityIcons name="tag" size={16} color="#2E7D32" />
+              {"  "}Complaint Title *
+            </Text>
+            <TextInput
+              style={styles.input}
+              value={title}
+              onChangeText={setTitle}
+              placeholder="e.g., Maize leaves turning yellow"
+              placeholderTextColor="#999"
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Type of Issue *</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.typeScroll}>
+              {complaintTypes.map((item) => (
+                <TouchableOpacity
+                  key={item.value}
+                  style={[
+                    styles.typeChip,
+                    type === item.value && styles.typeChipActive,
+                  ]}
+                  onPress={() => setType(item.value)}
+                >
+                  <MaterialCommunityIcons 
+                    name={item.icon} 
+                    size={16} 
+                    color={type === item.value ? "#FFF" : "#2E7D32"} 
+                  />
+                  <Text
+                    style={[
+                      styles.typeChipText,
+                      type === item.value && styles.typeChipTextActive,
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>
+              <MaterialCommunityIcons name="map-marker" size={16} color="#2E7D32" />
+              {"  "}Location *
+            </Text>
+            <TextInput
+              style={styles.input}
+              value={location}
+              onChangeText={setLocation}
+              placeholder="e.g., Field A, North Section"
+              placeholderTextColor="#999"
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Description *</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              value={description}
+              onChangeText={setDescription}
+              placeholder="Describe the issue in detail..."
+              placeholderTextColor="#999"
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Upload Image (Optional)</Text>
+            {selectedImage ? (
+              <View style={styles.imagePreviewContainer}>
+                <Image source={{ uri: selectedImage }} style={styles.imagePreview} />
+                <TouchableOpacity
+                  style={styles.removeImageButton}
+                  onPress={() => setSelectedImage(null)}
+                >
+                  <MaterialCommunityIcons name="close" size={16} color="#FFF" />
+                </TouchableOpacity>
+              </View>
+            ) : null}
+
+            <View style={styles.imageButtons}>
+              <TouchableOpacity style={styles.imageButton} onPress={pickImage}>
+                <MaterialCommunityIcons name="image" size={20} color="#2E7D32" />
+                <Text style={styles.imageButtonText}>Gallery</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.imageButton} onPress={takePhoto}>
+                <MaterialCommunityIcons name="camera" size={20} color="#2E7D32" />
+                <Text style={styles.imageButtonText}>Camera</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.submitButton}
+            onPress={handleSubmit}
+            disabled={submitting}
+          >
+            {submitting ? (
+              <ActivityIndicator size="small" color="#FFF" />
+            ) : (
+              <>
+                <MaterialCommunityIcons name="send" size={20} color="#FFF" />
+                <Text style={styles.submitButtonText}>
+                  {editId ? "Update Complaint" : "Submit Complaint"}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </ScrollView>
+      </SafeAreaView>
+    </Modal>
+  );
+});
 
 export default function ComplaintDashboard() {
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [submitting, setSubmitting] = useState<boolean>(false);
   const [showForm, setShowForm] = useState<boolean>(false);
   const [viewComplaint, setViewComplaint] = useState<Complaint | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [editData, setEditData] = useState({
+    title: "",
+    type: "",
+    description: "",
+    location: "",
+    image: null as string | null,
+  });
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [showFilterModal, setShowFilterModal] = useState<boolean>(false);
   const [showActionModal, setShowActionModal] = useState<number | null>(null);
   
-  const [formData, setFormData] = useState<FormData>({
-    title: "",
-    type: "",
-    description: "",
-    location: "",
-  });
+  const getUserId = async () => {
+    try {
+      const userStr = await AsyncStorage.getItem("user");
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        return user.id;
+      }
+    } catch (error) {
+      console.error("Error getting user ID:", error);
+    }
+    return null;
+  };
 
-  // Mock data for preview
-  const mockComplaints: Complaint[] = [
-    {
-      id: 1,
-      title: "Pest Attack on Maize",
-      type: "Pest Attack",
-      description: "Army worms detected in Field A",
-      location: "Field A, North Section",
-      status: "pending",
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: 2,
-      title: "Irrigation System Failure",
-      type: "Equipment Failure",
-      description: "Water pump not working",
-      location: "Field B",
-      status: "in progress",
-      created_at: new Date(Date.now() - 86400000).toISOString(),
-    },
-    {
-      id: 3,
-      title: "Crop Disease",
-      type: "Crop Disease",
-      description: "Maize leaves turning yellow",
-      location: "Field C",
-      status: "resolved",
-      created_at: new Date(Date.now() - 172800000).toISOString(),
-    },
-  ];
-
-  // Load complaints
-  useEffect(() => {
-    loadComplaints();
-  }, []);
+  const getToken = async () => {
+    return await AsyncStorage.getItem("token") || await AsyncStorage.getItem("user_token");
+  };
 
   const loadComplaints = async () => {
-    setLoading(true);
     try {
-      // Simulate API call
-      setTimeout(() => {
-        setComplaints(mockComplaints);
-        setLoading(false);
-        setRefreshing(false);
-      }, 1000);
+      setLoading(true);
+      const token = await getToken();
+      const id = await getUserId();
+      
+      if (!token || !id) {
+        Alert.alert("Error", "Please login again");
+        router.push("/login");
+        return;
+      }
+
+      try {
+        const response = await axios.get<Complaint[]>(
+          `${BASE_URL}/complaints/user/${id}`,
+          {
+            headers: { Authorization: `Bearer ${token}` }
+          }
+        );
+
+        const sortedComplaints = response.data.sort((a, b) => 
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+
+        setComplaints(sortedComplaints);
+      } catch (error: any) {
+        if (error.response?.status === 404) {
+          setComplaints([]);
+        } else {
+          console.error("Error loading complaints:", error);
+          Alert.alert("Error", "Failed to load complaints");
+        }
+      }
     } catch (error) {
-      console.error("Error loading complaints:", error);
-      Alert.alert("Error", "Failed to load complaints");
+      console.error("Error:", error);
+      setComplaints([]);
+    } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
+
+  useEffect(() => {
+    loadComplaints();
+  }, []);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     loadComplaints();
   }, []);
 
-  // Image picker
-  const pickImage = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    
-    if (status !== "granted") {
-      Alert.alert("Permission needed", "Please grant camera roll permissions to upload image.");
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.8,
-    });
-
-    if (!result.canceled && result.assets[0].uri) {
-      setSelectedImage(result.assets[0].uri);
-    }
-  };
-
-  const takePhoto = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    
-    if (status !== "granted") {
-      Alert.alert("Permission needed", "Please grant camera permissions to take photo.");
-      return;
-    }
-
-    const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
-      quality: 0.8,
-    });
-
-    if (!result.canceled && result.assets[0].uri) {
-      setSelectedImage(result.assets[0].uri);
-    }
-  };
-
-  // Handle form submit
-  const handleSubmit = () => {
-    if (!formData.title || !formData.type || !formData.description || !formData.location) {
+  const handleSubmit = async (title: string, type: string, description: string, location: string, selectedImage: string | null) => {
+    if (!title || !type || !description || !location) {
       Alert.alert("Error", "Please fill in all required fields");
       return;
     }
 
-    setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      const newComplaint: Complaint = {
-        id: Date.now(),
-        ...formData,
-        status: "pending",
-        created_at: new Date().toISOString(),
-        image: selectedImage || undefined,
-      };
+    try {
+      setSubmitting(true);
+      const token = await getToken();
+      const id = await getUserId();
+      
+      if (!token || !id) {
+        Alert.alert("Error", "Please login again");
+        router.push("/login");
+        return;
+      }
+
+      const formDataObj = new FormData();
+      formDataObj.append('user_id', id.toString());
+      formDataObj.append('title', title);
+      formDataObj.append('type', type);
+      formDataObj.append('description', description);
+      formDataObj.append('location', location);
+      
+      if (selectedImage) {
+        try {
+          const uriParts = selectedImage.split('.');
+          const fileExtension = uriParts[uriParts.length - 1]?.toLowerCase() || 'jpg';
+          const mimeType = fileExtension === 'png' ? 'image/png' : 'image/jpeg';
+          const filename = `${editId ? `complaint_${editId}` : 'complaint'}_${Date.now()}.${fileExtension}`;
+
+          if (Platform.OS === 'web') {
+            const response = await fetch(selectedImage);
+            const blob = await response.blob();
+            formDataObj.append('image', blob, filename);
+          } else {
+            formDataObj.append('image', {
+              uri: selectedImage,
+              type: mimeType,
+              name: filename,
+            } as any);
+          }
+        } catch (error) {
+          console.error("Error preparing file:", error);
+          Alert.alert("Warning", "Image could not be prepared, but complaint will still be submitted");
+        }
+      }
 
       if (editId) {
-        setComplaints(complaints.map(c => c.id === editId ? { ...c, ...formData } : c));
+        await axios.put(
+          `${BASE_URL}/complaints/${editId}?user_id=${id}`,
+          formDataObj,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'multipart/form-data',
+            },
+          }
+        );
         Alert.alert("Success", "Complaint updated successfully");
       } else {
-        setComplaints([newComplaint, ...complaints]);
+        await axios.post(
+          `${BASE_URL}/complaints`,
+          formDataObj,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'multipart/form-data',
+            },
+          }
+        );
         Alert.alert("Success", "Complaint submitted successfully");
       }
 
-      // Reset form
-      setFormData({ title: "", type: "", description: "", location: "" });
-      setSelectedImage(null);
       setEditId(null);
+      setEditData({ title: "", type: "", description: "", location: "", image: null });
       setShowForm(false);
-      setLoading(false);
-    }, 1000);
+      loadComplaints();
+    } catch (error: any) {
+      console.error("Error submitting complaint:", error);
+      
+      let errorMsg = "Failed to submit complaint";
+      if (error.response) {
+        if (error.response.status === 422) {
+          const detail = error.response.data?.detail;
+          if (Array.isArray(detail)) {
+            errorMsg = detail.map((err: any) => err.msg).join('\n');
+          } else if (detail) {
+            errorMsg = detail;
+          }
+        } else {
+          errorMsg = error.response.data?.detail || errorMsg;
+        }
+      }
+      
+      Alert.alert("Error", errorMsg);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  // Handle delete
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number) => {
     Alert.alert(
       "Delete Complaint",
       "Are you sure you want to delete this complaint?",
@@ -213,76 +497,72 @@ export default function ComplaintDashboard() {
         {
           text: "Delete",
           style: "destructive",
-          onPress: () => {
-            setComplaints(complaints.filter(c => c.id !== id));
-            setShowActionModal(null);
-            Alert.alert("Success", "Complaint deleted successfully");
+          onPress: async () => {
+            try {
+              const token = await getToken();
+              const userId = await getUserId();
+              
+              if (!token || !userId) {
+                Alert.alert("Error", "Please login again");
+                router.push("/login");
+                return;
+              }
+
+              await axios.delete(
+                `${BASE_URL}/complaints/${id}?user_id=${userId}`,
+                {
+                  headers: { Authorization: `Bearer ${token}` }
+                }
+              );
+
+              setComplaints(complaints.filter(c => c.id !== id));
+              setShowActionModal(null);
+              Alert.alert("Success", "Complaint deleted successfully");
+            } catch (error: any) {
+              console.error("Error deleting complaint:", error);
+              Alert.alert("Error", error.response?.data?.detail || "Failed to delete complaint");
+            }
           },
         },
       ]
     );
   };
 
-  // Handle edit
   const handleEdit = (complaint: Complaint) => {
-    setFormData({
+    setEditData({
       title: complaint.title,
       type: complaint.type,
       description: complaint.description,
       location: complaint.location,
+      image: complaint.image || null,
     });
-    setSelectedImage(complaint.image || null);
     setEditId(complaint.id);
     setShowForm(true);
     setShowActionModal(null);
   };
 
-  // Filter complaints
+  const handleAddNew = () => {
+    setEditId(null);
+    setEditData({ title: "", type: "", description: "", location: "", image: null });
+    setShowForm(true);
+  };
+
   const filteredComplaints = complaints.filter(c => {
     const matchesSearch = 
       c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       c.type.toLowerCase().includes(searchQuery.toLowerCase()) ||
       c.location.toLowerCase().includes(searchQuery.toLowerCase());
     
-    const matchesStatus = filterStatus === "all" || c.status === filterStatus;
+    const matchesStatus = filterStatus === "all" || c.status.toLowerCase() === filterStatus.toLowerCase();
     
     return matchesSearch && matchesStatus;
   });
 
-  // Get status color
-  const getStatusColor = (status: string): string => {
-    switch (status.toLowerCase()) {
-      case "resolved":
-        return "#4CAF50";
-      case "pending":
-        return "#FF9800";
-      case "in progress":
-        return "#2196F3";
-      default:
-        return "#9E9E9E";
-    }
-  };
-
-  const getStatusBgColor = (status: string): string => {
-    switch (status.toLowerCase()) {
-      case "resolved":
-        return "#E8F5E9";
-      case "pending":
-        return "#FFF3E0";
-      case "in progress":
-        return "#E3F2FD";
-      default:
-        return "#F5F5F5";
-    }
-  };
-
-  // Get icon for complaint type
   const getTypeIcon = (type: string): IconName => {
     const found = complaintTypes.find(t => t.value === type);
     return found?.icon || "alert-circle";
   };
 
-  // Format date
   const formatDate = (dateString: string): string => {
     const date = new Date(dateString);
     const now = new Date();
@@ -295,91 +575,115 @@ export default function ComplaintDashboard() {
     return date.toLocaleDateString();
   };
 
-  // Complaint Card Component
-  const ComplaintCard = ({ item }: { item: Complaint }) => (
-    <TouchableOpacity
-      style={styles.card}
-      onPress={() => setViewComplaint(item)}
-      activeOpacity={0.7}
-    >
-      <View style={styles.cardHeader}>
-        <View style={styles.cardTitleContainer}>
-          <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
-          <View style={[styles.statusBadge, { backgroundColor: getStatusBgColor(item.status) }]}>
-            <View style={[styles.statusDot, { backgroundColor: getStatusColor(item.status) }]} />
-            <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
-              {item.status}
+  // Fixed Complaint Card Component with working three-dot menu
+  const ComplaintCard = ({ item }: { item: Complaint }) => {
+    const statusStyle = getStatusColor(item.status);
+    
+    return (
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <View style={styles.cardTitleContainer}>
+            <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
+            <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
+              <View style={[styles.statusDot, { backgroundColor: statusStyle.dot }]} />
+              <Text style={[styles.statusText, { color: statusStyle.text }]}>
+                {item.status}
+              </Text>
+            </View>
+          </View>
+          
+          {/* Three dots menu button - FIXED: Always visible for all complaints, not just pending */}
+          <TouchableOpacity
+            onPress={() => setShowActionModal(item.id)}
+            style={styles.menuButton}
+            activeOpacity={0.7}
+          >
+            <MaterialCommunityIcons name="dots-vertical" size={24} color="#2E7D32" />
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity 
+          onPress={() => setViewComplaint(item)}
+          activeOpacity={0.7}
+        >
+          <View style={styles.cardContent}>
+            <View style={styles.cardRow}>
+              <MaterialCommunityIcons name={getTypeIcon(item.type)} size={16} color="#2E7D32" />
+              <Text style={styles.cardType}>{item.type}</Text>
+            </View>
+            <View style={styles.cardRow}>
+              <MaterialCommunityIcons name="map-marker" size={16} color="#2E7D32" />
+              <Text style={styles.cardLocation} numberOfLines={1}>{item.location}</Text>
+            </View>
+            <Text style={styles.cardDescription} numberOfLines={2}>
+              {item.description}
             </Text>
           </View>
-        </View>
-        <TouchableOpacity
-          onPress={() => setShowActionModal(item.id)}
-          style={styles.menuButton}
-        >
-          <MaterialCommunityIcons name="dots-vertical" size={20} color="#666" />
-        </TouchableOpacity>
-      </View>
 
-      <View style={styles.cardContent}>
-        <View style={styles.cardRow}>
-          <MaterialCommunityIcons name={getTypeIcon(item.type)} size={16} color="#2E7D32" />
-          <Text style={styles.cardType}>{item.type}</Text>
-        </View>
-        <View style={styles.cardRow}>
-          <MaterialCommunityIcons name="map-marker" size={16} color="#2E7D32" />
-          <Text style={styles.cardLocation} numberOfLines={1}>{item.location}</Text>
-        </View>
-        <Text style={styles.cardDescription} numberOfLines={2}>
-          {item.description}
-        </Text>
-      </View>
-
-      <View style={styles.cardFooter}>
-        <MaterialCommunityIcons name="clock-outline" size={14} color="#999" />
-        <Text style={styles.cardDate}>{formatDate(item.created_at)}</Text>
-      </View>
-
-      {/* Action Modal */}
-      <Modal visible={showActionModal === item.id} transparent>
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowActionModal(null)}
-        >
-          <View style={styles.actionModal}>
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={() => {
-                setViewComplaint(item);
-                setShowActionModal(null);
-              }}
-            >
-              <MaterialCommunityIcons name="eye" size={20} color="#2196F3" />
-              <Text style={styles.actionText}>View Details</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={() => handleEdit(item)}
-            >
-              <MaterialCommunityIcons name="pencil" size={20} color="#4CAF50" />
-              <Text style={styles.actionText}>Edit</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[styles.actionButton, styles.deleteButton]}
-              onPress={() => handleDelete(item.id)}
-            >
-              <MaterialCommunityIcons name="delete" size={20} color="#D32F2F" />
-              <Text style={[styles.actionText, styles.deleteText]}>Delete</Text>
-            </TouchableOpacity>
+          <View style={styles.cardFooter}>
+            <MaterialCommunityIcons name="clock-outline" size={14} color="#666" />
+            <Text style={styles.cardDate}>{formatDate(item.created_at)}</Text>
+            {item.image && (
+              <>
+                <MaterialCommunityIcons name="image" size={14} color="#666" />
+                <Text style={styles.cardDate}>Photo</Text>
+              </>
+            )}
           </View>
         </TouchableOpacity>
-      </Modal>
-    </TouchableOpacity>
-  );
 
-  // Filter Modal
+        {/* Action Modal - Appears when three dots are clicked */}
+        <Modal
+          visible={showActionModal === item.id}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowActionModal(null)}
+        >
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setShowActionModal(null)}
+          >
+            <View style={styles.actionModal}>
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={() => {
+                  setViewComplaint(item);
+                  setShowActionModal(null);
+                }}
+              >
+                <MaterialCommunityIcons name="eye" size={20} color="#2196F3" />
+                <Text style={styles.actionText}>View Details</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={() => {
+                  handleEdit(item);
+                  setShowActionModal(null);
+                }}
+              >
+                <MaterialCommunityIcons name="pencil" size={20} color="#4CAF50" />
+                <Text style={styles.actionText}>Edit</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.actionButton, styles.deleteButton]}
+                onPress={() => {
+                  handleDelete(item.id);
+                  setShowActionModal(null);
+                }}
+              >
+                <MaterialCommunityIcons name="delete" size={20} color="#D32F2F" />
+                <Text style={[styles.actionText, styles.deleteText]}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      </View>
+    );
+  };
+
   const FilterModal = () => (
     <Modal visible={showFilterModal} transparent animationType="slide">
       <View style={styles.modalOverlay}>
@@ -387,12 +691,12 @@ export default function ComplaintDashboard() {
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Filter Complaints</Text>
             <TouchableOpacity onPress={() => setShowFilterModal(false)}>
-              <MaterialCommunityIcons name="close" size={24} color="#666" />
+              <MaterialCommunityIcons name="close" size={24} color="#2E7D32" />
             </TouchableOpacity>
           </View>
 
           <Text style={styles.filterLabel}>Status</Text>
-          {["all", "pending", "in progress", "resolved"].map((status) => (
+          {["all", "pending", "in progress", "resolved", "rejected"].map((status) => (
             <TouchableOpacity
               key={status}
               style={[
@@ -422,25 +726,27 @@ export default function ComplaintDashboard() {
     </Modal>
   );
 
-  // Complaint Detail Modal
-  const ComplaintDetailModal = () => (
-    <Modal visible={!!viewComplaint} transparent animationType="slide">
-      <View style={styles.modalOverlay}>
-        <View style={styles.detailModal}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Complaint Details</Text>
-            <TouchableOpacity onPress={() => setViewComplaint(null)}>
-              <MaterialCommunityIcons name="close" size={24} color="#666" />
-            </TouchableOpacity>
-          </View>
+  const ComplaintDetailModal = () => {
+    if (!viewComplaint) return null;
+    const statusStyle = getStatusColor(viewComplaint.status);
+    
+    return (
+      <Modal visible={!!viewComplaint} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.detailModal}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Complaint Details</Text>
+              <TouchableOpacity onPress={() => setViewComplaint(null)}>
+                <MaterialCommunityIcons name="close" size={24} color="#2E7D32" />
+              </TouchableOpacity>
+            </View>
 
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {viewComplaint && (
+            <ScrollView showsVerticalScrollIndicator={false}>
               <>
                 <View style={styles.detailStatus}>
-                  <View style={[styles.detailStatusBadge, { backgroundColor: getStatusBgColor(viewComplaint.status) }]}>
-                    <View style={[styles.statusDot, { backgroundColor: getStatusColor(viewComplaint.status) }]} />
-                    <Text style={[styles.detailStatusText, { color: getStatusColor(viewComplaint.status) }]}>
+                  <View style={[styles.detailStatusBadge, { backgroundColor: statusStyle.bg }]}>
+                    <View style={[styles.statusDot, { backgroundColor: statusStyle.dot }]} />
+                    <Text style={[styles.detailStatusText, { color: statusStyle.text }]}>
                       {viewComplaint.status}
                     </Text>
                   </View>
@@ -481,7 +787,11 @@ export default function ComplaintDashboard() {
                 {viewComplaint.image && (
                   <View style={styles.detailSection}>
                     <Text style={styles.detailLabel}>Attached Image</Text>
-                    <Image source={{ uri: viewComplaint.image }} style={styles.detailImage} />
+                    <Image 
+                      source={{ uri: viewComplaint.image }} 
+                      style={styles.detailImage}
+                      resizeMode="cover"
+                    />
                   </View>
                 )}
 
@@ -491,196 +801,29 @@ export default function ComplaintDashboard() {
                     {new Date(viewComplaint.created_at).toLocaleString()}
                   </Text>
                 </View>
-
-                <View style={styles.detailButtons}>
-                  <TouchableOpacity
-                    style={[styles.detailButton, styles.editButton]}
-                    onPress={() => {
-                      handleEdit(viewComplaint);
-                      setViewComplaint(null);
-                    }}
-                  >
-                    <MaterialCommunityIcons name="pencil" size={20} color="#FFF" />
-                    <Text style={styles.buttonText}>Edit</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[styles.detailButton, styles.deleteDetailButton]}
-                    onPress={() => {
-                      handleDelete(viewComplaint.id);
-                      setViewComplaint(null);
-                    }}
-                  >
-                    <MaterialCommunityIcons name="delete" size={20} color="#FFF" />
-                    <Text style={styles.buttonText}>Delete</Text>
-                  </TouchableOpacity>
-                </View>
               </>
-            )}
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
-  );
-
-  // Form Modal
-  const FormModal = () => (
-    <Modal visible={showForm} animationType="slide">
-      <SafeAreaView style={styles.formContainer}>
-        <View style={styles.formHeader}>
-          <TouchableOpacity onPress={() => setShowForm(false)} style={styles.closeButton}>
-            <MaterialCommunityIcons name="close" size={24} color="#FFF" />
-          </TouchableOpacity>
-          <Text style={styles.formTitle}>
-            {editId ? "Update Complaint" : "Report New Issue"}
-          </Text>
-          <View style={{ width: 40 }} />
-        </View>
-
-        <ScrollView style={styles.formContent}>
-          {/* Title */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>
-              <MaterialCommunityIcons name="tag" size={16} color="#2E7D32" />
-              {"  "}Complaint Title *
-            </Text>
-            <TextInput
-              style={styles.input}
-              value={formData.title}
-              onChangeText={(text) => setFormData({ ...formData, title: text })}
-              placeholder="e.g., Maize leaves turning yellow"
-              placeholderTextColor="#999"
-            />
-          </View>
-
-          {/* Type */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Type of Issue *</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.typeScroll}>
-              {complaintTypes.map((type) => (
-                <TouchableOpacity
-                  key={type.value}
-                  style={[
-                    styles.typeChip,
-                    formData.type === type.value && styles.typeChipActive,
-                  ]}
-                  onPress={() => setFormData({ ...formData, type: type.value })}
-                >
-                  <MaterialCommunityIcons 
-                    name={type.icon} 
-                    size={16} 
-                    color={formData.type === type.value ? "#FFF" : "#2E7D32"} 
-                  />
-                  <Text
-                    style={[
-                      styles.typeChipText,
-                      formData.type === type.value && styles.typeChipTextActive,
-                    ]}
-                  >
-                    {type.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
             </ScrollView>
           </View>
-
-          {/* Location */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>
-              <MaterialCommunityIcons name="map-marker" size={16} color="#2E7D32" />
-              {"  "}Location *
-            </Text>
-            <TextInput
-              style={styles.input}
-              value={formData.location}
-              onChangeText={(text) => setFormData({ ...formData, location: text })}
-              placeholder="e.g., Field A, North Section"
-              placeholderTextColor="#999"
-            />
-          </View>
-
-          {/* Description */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Description *</Text>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              value={formData.description}
-              onChangeText={(text) => setFormData({ ...formData, description: text })}
-              placeholder="Describe the issue in detail..."
-              placeholderTextColor="#999"
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
-            />
-          </View>
-
-          {/* Image Upload */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Upload Image (Optional)</Text>
-            {selectedImage ? (
-              <View style={styles.imagePreviewContainer}>
-                <Image source={{ uri: selectedImage }} style={styles.imagePreview} />
-                <TouchableOpacity
-                  style={styles.removeImageButton}
-                  onPress={() => setSelectedImage(null)}
-                >
-                  <MaterialCommunityIcons name="close" size={16} color="#FFF" />
-                </TouchableOpacity>
-              </View>
-            ) : null}
-
-            <View style={styles.imageButtons}>
-              <TouchableOpacity style={styles.imageButton} onPress={pickImage}>
-                <MaterialCommunityIcons name="image" size={20} color="#2E7D32" />
-                <Text style={styles.imageButtonText}>Gallery</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.imageButton} onPress={takePhoto}>
-                <MaterialCommunityIcons name="camera" size={20} color="#2E7D32" />
-                <Text style={styles.imageButtonText}>Camera</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Submit Button */}
-          <TouchableOpacity
-            style={styles.submitButton}
-            onPress={handleSubmit}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator size="small" color="#FFF" />
-            ) : (
-              <>
-                <MaterialCommunityIcons name="send" size={20} color="#FFF" />
-                <Text style={styles.submitButtonText}>
-                  {editId ? "Update Complaint" : "Submit Complaint"}
-                </Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </ScrollView>
-      </SafeAreaView>
-    </Modal>
-  );
+        </View>
+      </Modal>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <MaterialCommunityIcons name="arrow-left" size={24} color="#FFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Farm Complaints</Text>
-        <TouchableOpacity onPress={() => setShowForm(true)} style={styles.addButton}>
+        <TouchableOpacity onPress={handleAddNew} style={styles.addButton}>
           <MaterialCommunityIcons name="plus" size={24} color="#FFF" />
         </TouchableOpacity>
       </View>
 
-      {/* Search Bar */}
       <View style={styles.searchContainer}>
         <View style={styles.searchBox}>
-          <MaterialCommunityIcons name="magnify" size={20} color="#999" />
+          <MaterialCommunityIcons name="magnify" size={20} color="#2E7D32" />
           <TextInput
             style={styles.searchInput}
             placeholder="Search complaints..."
@@ -690,7 +833,7 @@ export default function ComplaintDashboard() {
           />
           {searchQuery ? (
             <TouchableOpacity onPress={() => setSearchQuery("")}>
-              <MaterialCommunityIcons name="close" size={20} color="#999" />
+              <MaterialCommunityIcons name="close" size={20} color="#2E7D32" />
             </TouchableOpacity>
           ) : null}
         </View>
@@ -707,7 +850,6 @@ export default function ComplaintDashboard() {
         </TouchableOpacity>
       </View>
 
-      {/* Stats Summary */}
       <View style={styles.statsContainer}>
         <View style={styles.statCard}>
           <Text style={styles.statNumber}>{complaints.length}</Text>
@@ -715,25 +857,24 @@ export default function ComplaintDashboard() {
         </View>
         <View style={styles.statCard}>
           <Text style={styles.statNumber}>
-            {complaints.filter(c => c.status === "pending").length}
+            {complaints.filter(c => c.status.toLowerCase() === "pending").length}
           </Text>
           <Text style={styles.statLabel}>Pending</Text>
         </View>
         <View style={styles.statCard}>
           <Text style={styles.statNumber}>
-            {complaints.filter(c => c.status === "in progress").length}
+            {complaints.filter(c => c.status.toLowerCase() === "in progress").length}
           </Text>
           <Text style={styles.statLabel}>In Progress</Text>
         </View>
         <View style={styles.statCard}>
           <Text style={styles.statNumber}>
-            {complaints.filter(c => c.status === "resolved").length}
+            {complaints.filter(c => c.status.toLowerCase() === "resolved").length}
           </Text>
           <Text style={styles.statLabel}>Resolved</Text>
         </View>
       </View>
 
-      {/* Complaints List */}
       {loading && !refreshing ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#2E7D32" />
@@ -750,11 +891,11 @@ export default function ComplaintDashboard() {
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <MaterialCommunityIcons name="alert-circle-outline" size={60} color="#CCC" />
+              <MaterialCommunityIcons name="alert-circle-outline" size={60} color="#2E7D32" />
               <Text style={styles.emptyText}>No complaints found</Text>
               <TouchableOpacity
                 style={styles.emptyButton}
-                onPress={() => setShowForm(true)}
+                onPress={handleAddNew}
               >
                 <Text style={styles.emptyButtonText}>Report Your First Issue</Text>
               </TouchableOpacity>
@@ -763,10 +904,20 @@ export default function ComplaintDashboard() {
         />
       )}
 
-      {/* Modals */}
       <FilterModal />
       <ComplaintDetailModal />
-      <FormModal />
+      <ComplaintForm
+        visible={showForm}
+        onClose={() => setShowForm(false)}
+        onSubmit={handleSubmit}
+        editId={editId}
+        initialTitle={editData.title}
+        initialType={editData.type}
+        initialDescription={editData.description}
+        initialLocation={editData.location}
+        initialImage={editData.image}
+        submitting={submitting}
+      />
     </SafeAreaView>
   );
 }
@@ -774,7 +925,7 @@ export default function ComplaintDashboard() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F7FA",
+    backgroundColor: "#E8F5E9",
   },
   header: {
     backgroundColor: "#2E7D32",
@@ -809,7 +960,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: "#E0E0E0",
+    borderColor: "#C8E6C9",
   },
   searchInput: {
     flex: 1,
@@ -826,7 +977,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#E0E0E0",
+    borderColor: "#C8E6C9",
   },
   filterButtonActive: {
     backgroundColor: "#2E7D32",
@@ -845,10 +996,12 @@ const styles = StyleSheet.create({
     padding: 12,
     alignItems: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: 2,
     elevation: 2,
+    borderWidth: 1,
+    borderColor: "#C8E6C9",
   },
   statNumber: {
     fontSize: 20,
@@ -865,15 +1018,17 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   card: {
-    backgroundColor: "#FFF",
+    backgroundColor: "#cefec2",
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: 2,
     elevation: 2,
+    borderWidth: 1,
+    borderColor: "#C8E6C9",
   },
   cardHeader: {
     flexDirection: "row",
@@ -888,11 +1043,16 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 16,
     fontWeight: "bold",
-    color: "#333",
+    color: "#1B5E20",
     marginBottom: 6,
   },
   menuButton: {
-    padding: 4,
+    padding: 8,
+    backgroundColor: "#E8F5E9",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#2E7D32",
+    marginLeft: 8,
   },
   statusBadge: {
     flexDirection: "row",
@@ -924,11 +1084,11 @@ const styles = StyleSheet.create({
   },
   cardType: {
     fontSize: 13,
-    color: "#666",
+    color: "#2E7D32",
   },
   cardLocation: {
     fontSize: 13,
-    color: "#666",
+    color: "#2E7D32",
     flex: 1,
   },
   cardDescription: {
@@ -940,10 +1100,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
+    borderTopWidth: 1,
+    borderTopColor: "#E8F5E9",
+    paddingTop: 8,
   },
   cardDate: {
     fontSize: 11,
-    color: "#999",
+    color: "#666",
   },
   loadingContainer: {
     flex: 1,
@@ -952,7 +1115,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 10,
-    color: "#666",
+    color: "#2E7D32",
   },
   emptyContainer: {
     alignItems: "center",
@@ -961,7 +1124,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: "#999",
+    color: "#2E7D32",
     marginTop: 10,
     marginBottom: 20,
   },
@@ -991,6 +1154,13 @@ const styles = StyleSheet.create({
     right: 20,
     top: "50%",
     marginTop: -100,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: "#C8E6C9",
   },
   actionButton: {
     flexDirection: "row",
@@ -1000,7 +1170,7 @@ const styles = StyleSheet.create({
   },
   deleteButton: {
     borderTopWidth: 1,
-    borderTopColor: "#F0F0F0",
+    borderTopColor: "#E8F5E9",
   },
   actionText: {
     fontSize: 14,
@@ -1015,6 +1185,13 @@ const styles = StyleSheet.create({
     padding: 20,
     width: "80%",
     maxWidth: 320,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: "#C8E6C9",
   },
   modalHeader: {
     flexDirection: "row",
@@ -1025,7 +1202,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#333",
+    color: "#2E7D32",
   },
   filterLabel: {
     fontSize: 14,
@@ -1041,6 +1218,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 10,
     marginBottom: 8,
+    backgroundColor: "#F5F5F5",
   },
   filterOptionActive: {
     backgroundColor: "#E8F5E9",
@@ -1059,6 +1237,13 @@ const styles = StyleSheet.create({
     padding: 20,
     width: "90%",
     maxHeight: "80%",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: "#C8E6C9",
   },
   detailStatus: {
     flexDirection: "row",
@@ -1081,7 +1266,7 @@ const styles = StyleSheet.create({
   },
   detailId: {
     fontSize: 12,
-    color: "#999",
+    color: "#2E7D32",
   },
   detailSection: {
     marginBottom: 16,
@@ -1096,8 +1281,9 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     fontSize: 12,
-    color: "#999",
+    color: "#2E7D32",
     marginBottom: 4,
+    fontWeight: "600",
   },
   detailValue: {
     fontSize: 15,
@@ -1123,39 +1309,16 @@ const styles = StyleSheet.create({
     height: 200,
     borderRadius: 12,
     marginTop: 8,
+    borderWidth: 1,
+    borderColor: "#C8E6C9",
   },
   detailDate: {
     fontSize: 13,
     color: "#666",
   },
-  detailButtons: {
-    flexDirection: "row",
-    gap: 12,
-    marginTop: 20,
-  },
-  detailButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 14,
-    borderRadius: 10,
-    gap: 8,
-  },
-  editButton: {
-    backgroundColor: "#2196F3",
-  },
-  deleteDetailButton: {
-    backgroundColor: "#D32F2F",
-  },
-  buttonText: {
-    color: "#FFF",
-    fontSize: 15,
-    fontWeight: "600",
-  },
   formContainer: {
     flex: 1,
-    backgroundColor: "#F5F7FA",
+    backgroundColor: "#E8F5E9",
   },
   formHeader: {
     backgroundColor: "#2E7D32",
@@ -1193,7 +1356,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#333",
     borderWidth: 1,
-    borderColor: "#E0E0E0",
+    borderColor: "#C8E6C9",
   },
   textArea: {
     minHeight: 100,
@@ -1233,6 +1396,8 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 200,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#C8E6C9",
   },
   removeImageButton: {
     position: "absolute",
@@ -1276,6 +1441,11 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 10,
     marginBottom: 30,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 5,
   },
   submitButtonText: {
     color: "#FFF",

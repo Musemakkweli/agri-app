@@ -1,12 +1,15 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import axios from "axios";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Image,
-  Modal,
+  Modal, // Add this import
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,163 +18,434 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-// Define User type
-interface User {
+import BASE_URL from "../../services/api";
+
+// Define types
+interface FarmerProfile {
   id: number;
   fullname: string;
   email: string;
   phone: string;
-  district: string;
   farm_location: string;
   crop_type: string;
-  farm_size: number;
-  profileImage: string | null;
-  is_profile_completed: boolean;
-  is_approved: boolean;
+  district: string;
+  profile_picture?: string | null;
 }
 
-// Mock data for preview
-const MOCK_USER: User = {
-  id: 1,
-  fullname: "John Farmer",
-  email: "john.farmer@example.com",
-  phone: "+250 788 123 456",
-  district: "Huye",
-  farm_location: "Tumba Sector",
-  crop_type: "Maize, Beans, Coffee",
-  farm_size: 5.2,
-  profileImage: null,
-  is_profile_completed: true,
-  is_approved: true,
-};
+interface ProfileResponse {
+  id: number;
+  fullname: string;
+  email: string;
+  phone: string;
+  farm_location: string;
+  crop_type: string;
+  district: string;
+  profile_picture?: string | null;
+}
+
+interface UploadResponse {
+  message: string;
+  imageUrl: string;
+}
+
+interface UpdateProfileRequest {
+  fullname?: string;
+  phone?: string;
+  farm_location?: string;
+  crop_type?: string;
+  district?: string;
+}
+
+interface UpdateProfileResponse {
+  message: string;
+  is_profile_completed: boolean;
+}
 
 export default function FarmerProfilePage() {
-  const [user, setUser] = useState<User>(MOCK_USER);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [saving, setSaving] = useState<boolean>(false);
-  const [isEditing, setIsEditing] = useState<boolean>(false);
-  const [profileImage, setProfileImage] = useState<string | null>(null);
-  const [showSuccessModal, setShowSuccessModal] = useState<boolean>(false);
-  const [showErrorModal, setShowErrorModal] = useState<boolean>(false);
+  const [user, setUser] = useState<FarmerProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [imageError, setImageError] = useState(false);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
-  const handleChange = (field: keyof User, value: string): void => {
-    setUser({ ...user, [field]: value });
+  // Form state for editing
+  const [formData, setFormData] = useState({
+    fullname: "",
+    phone: "",
+    farm_location: "",
+    crop_type: "",
+    district: "",
+  });
+
+  // Get auth token
+  const getToken = async () => {
+    return await AsyncStorage.getItem("token") || await AsyncStorage.getItem("user_token");
   };
 
-  const pickImage = async (): Promise<void> => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    
-    if (status !== "granted") {
-      Alert.alert("Permission needed", "Please grant camera roll permissions to upload image.");
+  // Load user profile from backend
+  const loadUserProfile = async () => {
+    try {
+      setLoading(true);
+      const token = await getToken();
+      const userStr = await AsyncStorage.getItem("user");
+      
+      if (!token || !userStr) {
+        Alert.alert("Error", "Please login again");
+        router.push("/login");
+        return;
+      }
+
+      const userData = JSON.parse(userStr);
+      
+      const response = await axios.get<ProfileResponse>(
+        `${BASE_URL}/users/profile/${userData.id}`,
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+
+      console.log("Profile data:", response.data);
+      
+      const profileData: FarmerProfile = {
+        id: response.data.id,
+        fullname: response.data.fullname,
+        email: response.data.email,
+        phone: response.data.phone || "",
+        farm_location: response.data.farm_location || "",
+        crop_type: response.data.crop_type || "",
+        district: response.data.district || "",
+        profile_picture: response.data.profile_picture,
+      };
+
+      setUser(profileData);
+      setImageUrl(response.data.profile_picture || null);
+      setImageError(false);
+      
+      // Initialize form data
+      setFormData({
+        fullname: profileData.fullname,
+        phone: profileData.phone,
+        farm_location: profileData.farm_location,
+        crop_type: profileData.crop_type,
+        district: profileData.district,
+      });
+
+    } catch (error: any) {
+      console.error("Error loading profile:", error);
+      Alert.alert("Error", "Failed to load profile");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadUserProfile();
+  }, []);
+
+  const handleChange = (field: keyof typeof formData, value: string) => {
+    setFormData({ ...formData, [field]: value });
+  };
+
+  const pickImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (status !== "granted") {
+        Alert.alert("Permission needed", "Please grant camera roll permissions.");
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0].uri) {
+        await uploadProfilePicture(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error("Error picking image:", error);
+      Alert.alert("Error", "Failed to pick image");
+    }
+  };
+
+  const uploadProfilePicture = async (imageUri: string) => {
+    if (!user) return;
+
+    try {
+      setUploadingImage(true);
+      setImageError(false);
+      const token = await getToken();
+      
+      if (!token) {
+        Alert.alert("Error", "Please login again");
+        router.push("/login");
+        return;
+      }
+
+      console.log("1. Uploading image from URI:", imageUri);
+
+      const formData = new FormData();
+      const filename = `profile_${user.id}_${Date.now()}.jpg`;
+
+      if (Platform.OS === 'web') {
+        const response = await fetch(imageUri);
+        const blob = await response.blob();
+        const file = new File([blob], filename, { type: 'image/jpeg' });
+        formData.append('file', file);
+      } else {
+        formData.append('file', {
+          uri: imageUri,
+          type: 'image/jpeg',
+          name: filename,
+        } as any);
+      }
+
+      console.log("2. Sending to:", `${BASE_URL}/users/${user.id}/profile-picture`);
+
+      const response = await axios.post<UploadResponse>(
+        `${BASE_URL}/users/${user.id}/profile-picture`,
+        formData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
+
+      console.log("3. Upload response:", response.data);
+
+      if (response.data.imageUrl) {
+        console.log("4. Image URL received:", response.data.imageUrl);
+        setImageUrl(response.data.imageUrl);
+        
+        // Update user in state
+        const updatedUser = {
+          ...user,
+          profile_picture: response.data.imageUrl,
+        };
+        setUser(updatedUser);
+
+        // Update AsyncStorage
+        const userStr = await AsyncStorage.getItem("user");
+        if (userStr) {
+          const userData = JSON.parse(userStr);
+          userData.profile_picture = response.data.imageUrl;
+          await AsyncStorage.setItem("user", JSON.stringify(userData));
+        }
+
+        setShowSuccessModal(true);
+        setTimeout(() => setShowSuccessModal(false), 2000);
+      }
+
+    } catch (error: any) {
+      console.error("Upload error:", error);
+      console.log("Error response:", error.response?.data);
+      Alert.alert("Error", error.response?.data?.detail || "Upload failed");
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!user) return;
+
+    if (!formData.fullname || !formData.phone || !formData.farm_location || 
+        !formData.crop_type || !formData.district) {
+      Alert.alert("Error", "Please fill in all fields");
       return;
     }
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
+    try {
+      setSaving(true);
+      const token = await getToken();
+      
+      if (!token) {
+        Alert.alert("Error", "Please login again");
+        router.push("/login");
+        return;
+      }
 
-    if (!result.canceled && result.assets[0].uri) {
-      setProfileImage(result.assets[0].uri);
-      setShowSuccessModal(true);
-      setTimeout(() => setShowSuccessModal(false), 2000);
-    }
-  };
+      const updateData: UpdateProfileRequest = {
+        fullname: formData.fullname,
+        phone: formData.phone,
+        farm_location: formData.farm_location,
+        crop_type: formData.crop_type,
+        district: formData.district,
+      };
 
-  const handleSave = (): void => {
-    setSaving(true);
-    // Simulate save
-    setTimeout(() => {
+      const response = await axios.put<UpdateProfileResponse>(
+        `${BASE_URL}/users/profile/${user.id}`,
+        updateData,
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+
+      // Update local user state
+      const updatedUser = {
+        ...user,
+        fullname: formData.fullname,
+        phone: formData.phone,
+        farm_location: formData.farm_location,
+        crop_type: formData.crop_type,
+        district: formData.district,
+        is_profile_completed: response.data.is_profile_completed,
+      };
+      
+      setUser(updatedUser);
+      
+      // Update AsyncStorage user data
+      const userStr = await AsyncStorage.getItem("user");
+      if (userStr) {
+        const userData = JSON.parse(userStr);
+        userData.fullname = formData.fullname;
+        userData.phone = formData.phone;
+        await AsyncStorage.setItem("user", JSON.stringify(userData));
+      }
+
       setSaving(false);
       setIsEditing(false);
       setShowSuccessModal(true);
       setTimeout(() => setShowSuccessModal(false), 2000);
-    }, 1500);
+
+    } catch (error: any) {
+      console.error("Error saving profile:", error);
+      Alert.alert("Error", error.response?.data?.detail || "Failed to save profile");
+      setSaving(false);
+    }
   };
 
-  const handleCancel = (): void => {
+  const handleCancel = () => {
+    if (user) {
+      setFormData({
+        fullname: user.fullname,
+        phone: user.phone,
+        farm_location: user.farm_location,
+        crop_type: user.crop_type,
+        district: user.district,
+      });
+    }
     setIsEditing(false);
-    setProfileImage(null);
   };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()}>
+            <MaterialCommunityIcons name="arrow-left" size={24} color="#FFF" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Farmer Profile</Text>
+          <View style={{ width: 40 }} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#2E7D32" />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!user) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()}>
+            <MaterialCommunityIcons name="arrow-left" size={24} color="#FFF" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Farmer Profile</Text>
+          <View style={{ width: 40 }} />
+        </View>
+        <View style={styles.errorContainer}>
+          <Text>Failed to load profile</Text>
+          <TouchableOpacity onPress={loadUserProfile}>
+            <Text>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  console.log("Current imageUrl state:", imageUrl);
+  console.log("User profile_picture:", user.profile_picture);
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.back()}>
           <MaterialCommunityIcons name="arrow-left" size={24} color="#FFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Farmer Profile</Text>
         {!isEditing ? (
-          <TouchableOpacity onPress={() => setIsEditing(true)} style={styles.editButton}>
+          <TouchableOpacity onPress={() => setIsEditing(true)}>
             <MaterialCommunityIcons name="pencil" size={24} color="#FFF" />
           </TouchableOpacity>
         ) : (
-          <View style={styles.placeholder} />
+          <View style={{ width: 40 }} />
         )}
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Profile Image Section */}
+      <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.imageSection}>
           <View style={styles.imageContainer}>
             <Image
-              source={{
-                uri: profileImage || 
-                      user.profileImage || 
-                      `https://ui-avatars.com/api/?name=${encodeURIComponent(user.fullname)}&background=2E7D32&color=fff&size=150`,
-              }}
+              source={
+                imageUrl && !imageError
+                  ? { uri: imageUrl }
+                  : { uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(user.fullname)}&background=2E7D32&color=fff&size=150` }
+              }
               style={styles.profileImage}
+              onError={(e) => {
+                console.log("Image failed to load:", e.nativeEvent.error);
+                console.log("Failed URL:", imageUrl);
+                setImageError(true);
+              }}
+              onLoad={() => {
+                console.log("Image loaded successfully");
+                setImageError(false);
+              }}
             />
             {isEditing && (
-              <TouchableOpacity style={styles.cameraButton} onPress={pickImage}>
-                <MaterialCommunityIcons name="camera" size={20} color="#FFF" />
+              <TouchableOpacity 
+                style={styles.cameraButton} 
+                onPress={pickImage}
+                disabled={uploadingImage}
+              >
+                {uploadingImage ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <MaterialCommunityIcons name="camera" size={20} color="#FFF" />
+                )}
               </TouchableOpacity>
             )}
           </View>
           
-          {/* Role Badge */}
           <View style={styles.roleBadge}>
             <MaterialCommunityIcons name="tractor" size={16} color="#2E7D32" />
             <Text style={styles.roleText}>Farmer</Text>
           </View>
-          
-          {/* Profile Status */}
-          <View style={styles.statusContainer}>
-            <MaterialCommunityIcons 
-              name={user.is_profile_completed ? "check-circle" : "alert-circle"} 
-              size={16} 
-              color={user.is_profile_completed ? "#2E7D32" : "#FF9800"} 
-            />
-            <Text style={[
-              styles.statusText,
-              { color: user.is_profile_completed ? "#2E7D32" : "#FF9800" }
-            ]}>
-              {user.is_profile_completed ? "Profile Complete" : "Profile Incomplete"}
-            </Text>
-          </View>
         </View>
 
-        {/* Profile Info Card */}
+        {/* Personal Information */}
         <View style={styles.infoCard}>
           <Text style={styles.sectionTitle}>Personal Information</Text>
           
-          {/* Full Name */}
           <View style={styles.infoRow}>
-            <View style={styles.iconContainer}>
-              <MaterialCommunityIcons name="account" size={22} color="#2E7D32" />
-            </View>
+            <MaterialCommunityIcons name="account" size={20} color="#2E7D32" />
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>Full Name</Text>
               {isEditing ? (
                 <TextInput
                   style={styles.infoInput}
-                  value={user.fullname}
+                  value={formData.fullname}
                   onChangeText={(text) => handleChange("fullname", text)}
                   placeholder="Full Name"
-                  placeholderTextColor="#999"
                 />
               ) : (
                 <Text style={styles.infoValue}>{user.fullname}</Text>
@@ -179,125 +453,84 @@ export default function FarmerProfilePage() {
             </View>
           </View>
 
-          {/* Email */}
           <View style={styles.infoRow}>
-            <View style={styles.iconContainer}>
-              <MaterialCommunityIcons name="email" size={22} color="#2E7D32" />
-            </View>
+            <MaterialCommunityIcons name="email" size={20} color="#2E7D32" />
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>Email</Text>
               <Text style={styles.infoValue}>{user.email}</Text>
             </View>
           </View>
 
-          {/* Phone */}
           <View style={styles.infoRow}>
-            <View style={styles.iconContainer}>
-              <MaterialCommunityIcons name="phone" size={22} color="#2E7D32" />
-            </View>
+            <MaterialCommunityIcons name="phone" size={20} color="#2E7D32" />
             <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Phone Number</Text>
+              <Text style={styles.infoLabel}>Phone</Text>
               {isEditing ? (
                 <TextInput
                   style={styles.infoInput}
-                  value={user.phone}
+                  value={formData.phone}
                   onChangeText={(text) => handleChange("phone", text)}
                   placeholder="Phone Number"
-                  placeholderTextColor="#999"
                   keyboardType="phone-pad"
                 />
               ) : (
-                <Text style={styles.infoValue}>{user.phone}</Text>
+                <Text style={styles.infoValue}>{user.phone || 'Not provided'}</Text>
               )}
             </View>
           </View>
         </View>
 
-        {/* Farm Information Card */}
+        {/* Farm Information */}
         <View style={styles.infoCard}>
           <Text style={styles.sectionTitle}>Farm Information</Text>
           
-          {/* District */}
           <View style={styles.infoRow}>
-            <View style={styles.iconContainer}>
-              <MaterialCommunityIcons name="map-marker" size={22} color="#2E7D32" />
-            </View>
+            <MaterialCommunityIcons name="map-marker" size={20} color="#2E7D32" />
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>District</Text>
               {isEditing ? (
                 <TextInput
                   style={styles.infoInput}
-                  value={user.district}
+                  value={formData.district}
                   onChangeText={(text) => handleChange("district", text)}
-                  placeholder="e.g., Huye"
-                  placeholderTextColor="#999"
+                  placeholder="District"
                 />
               ) : (
-                <Text style={styles.infoValue}>{user.district}</Text>
+                <Text style={styles.infoValue}>{user.district || 'Not provided'}</Text>
               )}
             </View>
           </View>
 
-          {/* Farm Location */}
           <View style={styles.infoRow}>
-            <View style={styles.iconContainer}>
-              <MaterialCommunityIcons name="terrain" size={22} color="#2E7D32" />
-            </View>
+            <MaterialCommunityIcons name="terrain" size={20} color="#2E7D32" />
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>Farm Location</Text>
               {isEditing ? (
                 <TextInput
                   style={styles.infoInput}
-                  value={user.farm_location}
+                  value={formData.farm_location}
                   onChangeText={(text) => handleChange("farm_location", text)}
-                  placeholder="e.g., Tumba Sector"
-                  placeholderTextColor="#999"
+                  placeholder="Farm Location"
                 />
               ) : (
-                <Text style={styles.infoValue}>{user.farm_location}</Text>
+                <Text style={styles.infoValue}>{user.farm_location || 'Not provided'}</Text>
               )}
             </View>
           </View>
 
-          {/* Main Crops */}
           <View style={styles.infoRow}>
-            <View style={styles.iconContainer}>
-              <MaterialCommunityIcons name="sprout" size={22} color="#2E7D32" />
-            </View>
+            <MaterialCommunityIcons name="sprout" size={20} color="#2E7D32" />
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>Main Crops</Text>
               {isEditing ? (
                 <TextInput
                   style={styles.infoInput}
-                  value={user.crop_type}
+                  value={formData.crop_type}
                   onChangeText={(text) => handleChange("crop_type", text)}
-                  placeholder="e.g., Maize, Beans"
-                  placeholderTextColor="#999"
+                  placeholder="Main Crops"
                 />
               ) : (
-                <Text style={styles.infoValue}>{user.crop_type}</Text>
-              )}
-            </View>
-          </View>
-
-          {/* Farm Size */}
-          <View style={styles.infoRow}>
-            <View style={styles.iconContainer}>
-              <MaterialCommunityIcons name="ruler" size={22} color="#2E7D32" />
-            </View>
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Farm Size (hectares)</Text>
-              {isEditing ? (
-                <TextInput
-                  style={styles.infoInput}
-                  value={user.farm_size?.toString()}
-                  onChangeText={(text) => handleChange("farm_size", text)}
-                  placeholder="e.g., 5.2"
-                  placeholderTextColor="#999"
-                  keyboardType="numeric"
-                />
-              ) : (
-                <Text style={styles.infoValue}>{user.farm_size} ha</Text>
+                <Text style={styles.infoValue}>{user.crop_type || 'Not provided'}</Text>
               )}
             </View>
           </View>
@@ -307,50 +540,25 @@ export default function FarmerProfilePage() {
         {isEditing ? (
           <View style={styles.buttonContainer}>
             <TouchableOpacity style={styles.cancelButton} onPress={handleCancel}>
-              <MaterialCommunityIcons name="close" size={20} color="#666" />
               <Text style={styles.cancelButtonText}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.saveButton} onPress={handleSave} disabled={saving}>
               {saving ? (
                 <ActivityIndicator size="small" color="#FFF" />
               ) : (
-                <>
-                  <MaterialCommunityIcons name="check" size={20} color="#FFF" />
-                  <Text style={styles.saveButtonText}>Save Changes</Text>
-                </>
+                <Text style={styles.saveButtonText}>Save Changes</Text>
               )}
             </TouchableOpacity>
           </View>
         ) : null}
 
-        {/* Approval Status */}
-        {!user.is_approved && (
-          <View style={styles.approvalContainer}>
-            <MaterialCommunityIcons name="clock-outline" size={20} color="#FF9800" />
-            <Text style={styles.approvalText}>
-              Your account is pending approval. Some features may be limited.
-            </Text>
+        {/* Image URL Display (for testing) */}
+        {imageUrl && (
+          <View style={styles.infoCard}>
+            <Text style={styles.label}>Image URL (saved in DB):</Text>
+            <Text style={styles.url} numberOfLines={2}>{imageUrl}</Text>
           </View>
         )}
-
-        {/* Stats Cards */}
-        <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
-            <MaterialCommunityIcons name="calendar-check" size={24} color="#2E7D32" />
-            <Text style={styles.statNumber}>12</Text>
-            <Text style={styles.statLabel}>Harvests</Text>
-          </View>
-          <View style={styles.statCard}>
-            <MaterialCommunityIcons name="bug" size={24} color="#2E7D32" />
-            <Text style={styles.statNumber}>3</Text>
-            <Text style={styles.statLabel}>Pests</Text>
-          </View>
-          <View style={styles.statCard}>
-            <MaterialCommunityIcons name="alert-circle" size={24} color="#2E7D32" />
-            <Text style={styles.statNumber}>5</Text>
-            <Text style={styles.statLabel}>Complaints</Text>
-          </View>
-        </View>
       </ScrollView>
 
       {/* Success Modal */}
@@ -359,16 +567,6 @@ export default function FarmerProfilePage() {
           <View style={styles.modalContent}>
             <MaterialCommunityIcons name="check-circle" size={50} color="#2E7D32" />
             <Text style={styles.modalText}>Profile updated successfully!</Text>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Error Modal */}
-      <Modal visible={showErrorModal} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <MaterialCommunityIcons name="alert-circle" size={50} color="#D32F2F" />
-            <Text style={styles.modalText}>Something went wrong. Please try again.</Text>
           </View>
         </View>
       </Modal>
@@ -389,22 +587,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
-  backButton: {
-    padding: 8,
-  },
   headerTitle: {
     fontSize: 20,
     fontWeight: "bold",
     color: "#FFF",
   },
-  editButton: {
-    padding: 8,
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  placeholder: {
-    width: 40,
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
   content: {
-    flex: 1,
     padding: 16,
   },
   imageSection: {
@@ -443,21 +641,11 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 20,
     gap: 6,
-    marginBottom: 8,
   },
   roleText: {
     color: "#2E7D32",
     fontSize: 14,
     fontWeight: "600",
-  },
-  statusContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  statusText: {
-    fontSize: 13,
-    fontWeight: "500",
   },
   infoCard: {
     backgroundColor: "#FFF",
@@ -467,8 +655,8 @@ const styles = StyleSheet.create({
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowRadius: 4,
+    elevation: 2,
   },
   sectionTitle: {
     fontSize: 16,
@@ -482,14 +670,10 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: "#F0F0F0",
-  },
-  iconContainer: {
-    width: 36,
-    alignItems: "center",
+    gap: 12,
   },
   infoContent: {
     flex: 1,
-    marginLeft: 8,
   },
   infoLabel: {
     fontSize: 12,
@@ -516,13 +700,10 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
     backgroundColor: "#FFF",
     paddingVertical: 14,
     borderRadius: 12,
-    gap: 8,
+    alignItems: "center",
     borderWidth: 1,
     borderColor: "#E0E0E0",
   },
@@ -533,61 +714,25 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
     backgroundColor: "#2E7D32",
     paddingVertical: 14,
     borderRadius: 12,
-    gap: 8,
+    alignItems: "center",
   },
   saveButtonText: {
     color: "#FFF",
     fontSize: 16,
     fontWeight: "600",
   },
-  approvalContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFF3E0",
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 20,
-    gap: 8,
-  },
-  approvalText: {
-    flex: 1,
-    color: "#FF9800",
-    fontSize: 13,
-  },
-  statsContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 20,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: "#FFF",
-    borderRadius: 12,
-    padding: 16,
-    alignItems: "center",
-    marginHorizontal: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  statNumber: {
-    fontSize: 20,
-    fontWeight: "bold",
+  label: {
+    fontSize: 14,
+    fontWeight: "600",
     color: "#2E7D32",
-    marginTop: 8,
+    marginBottom: 8,
   },
-  statLabel: {
+  url: {
     fontSize: 12,
     color: "#666",
-    marginTop: 4,
   },
   modalOverlay: {
     flex: 1,
@@ -600,12 +745,10 @@ const styles = StyleSheet.create({
     padding: 30,
     borderRadius: 16,
     alignItems: "center",
-    maxWidth: "80%",
   },
   modalText: {
     fontSize: 16,
     color: "#333",
-    textAlign: "center",
     marginTop: 10,
   },
 });
