@@ -1,4 +1,4 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { router } from "expo-router";
@@ -17,6 +17,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useTheme } from '../context/ThemeContext';
 import BASE_URL from "../services/api";
 
 const { width } = Dimensions.get("window");
@@ -32,17 +33,32 @@ const COLORS = {
   },
   background: {
     main: "#F8F5F0",       // Off-white - main background
-    card: "#FFFFFF",       // White - card background
+    card: "#b6dcb7",       // White - card background
     overlay: "rgba(0,0,0,0.5)", // Semi-transparent black
   },
   border: "#E8E0D5",       // Light brown - borders
   white: "#FFFFFF",
   black: "#000000",
   // Semantic colors - only used for specific meanings
-  danger: "#D32F2F",       // Red - delete actions
-  info: "#2196F3",         // Blue - view actions
-  success: "#4CAF50",      // Green - edit/save actions
-  warning: "#FF9800",      // Orange - download actions
+  danger: "#f46767",       // Red - delete actions
+  info: "#81bbea",         // Blue - view actions
+  success: "#73d176",      // Green - edit/save actions
+  warning: "#daa85e",      // Orange - download actions
+} as const;
+
+// Dark mode colors
+const DARK_COLORS = {
+  background: {
+    main: "#121212",
+    card: "#1E1E1E",
+    overlay: "rgba(0,0,0,0.7)",
+  },
+  text: {
+    primary: "#FFFFFF",
+    secondary: "#AAAAAA",
+    light: "#666666",
+  },
+  border: "#333333",
 } as const;
 
 interface Field {
@@ -55,56 +71,56 @@ interface Field {
 }
 
 // Field Card Component
-const FieldCard = ({ field, onView, onEdit, onDelete, onDownload }: any) => (
-  <View style={styles.card}>
+const FieldCard = ({ field, onView, onEdit, onDelete, onDownload, isDarkMode }: any) => (
+  <View style={[styles.card, isDarkMode && styles.darkCard]}>
     <View style={styles.cardHeader}>
       <View style={styles.cardTitleContainer}>
         <MaterialCommunityIcons name="terrain" size={24} color={COLORS.primary} />
-        <Text style={styles.cardTitle}>{field.name}</Text>
+        <Text style={[styles.cardTitle, isDarkMode && styles.darkText]}>{field.name}</Text>
       </View>
       <TouchableOpacity style={styles.menuButton}>
-        <MaterialCommunityIcons name="dots-vertical" size={24} color={COLORS.text.secondary} />
+        <MaterialCommunityIcons name="dots-vertical" size={24} color={isDarkMode ? "#AAA" : COLORS.text.secondary} />
       </TouchableOpacity>
     </View>
 
     <View style={styles.cardContent}>
       <View style={styles.infoRow}>
         <MaterialCommunityIcons name="ruler" size={16} color={COLORS.secondary} />
-        <Text style={styles.infoText}>Area: {field.area || '-'} ha</Text>
+        <Text style={[styles.infoText, isDarkMode && styles.darkSubText]}>Area: {field.area || '-'} ha</Text>
       </View>
       <View style={styles.infoRow}>
         <MaterialCommunityIcons name="sprout" size={16} color={COLORS.secondary} />
-        <Text style={styles.infoText}>Crop: {field.crop_type || '-'}</Text>
+        <Text style={[styles.infoText, isDarkMode && styles.darkSubText]}>Crop: {field.crop_type || '-'}</Text>
       </View>
       <View style={styles.infoRow}>
         <MaterialCommunityIcons name="map-marker" size={16} color={COLORS.secondary} />
-        <Text style={styles.infoText}>Location: {field.location || '-'}</Text>
+        <Text style={[styles.infoText, isDarkMode && styles.darkSubText]}>Location: {field.location || '-'}</Text>
       </View>
     </View>
 
-    <View style={styles.cardActions}>
+    <View style={[styles.cardActions, isDarkMode && styles.darkBorder]}>
       <TouchableOpacity style={styles.actionButton} onPress={onView}>
         <MaterialCommunityIcons name="eye" size={20} color={COLORS.info} />
-        <Text style={styles.actionText}>View</Text>
+        <Text style={[styles.actionText, isDarkMode && styles.darkSubText]}>View</Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.actionButton} onPress={onEdit}>
         <MaterialCommunityIcons name="pencil" size={20} color={COLORS.success} />
-        <Text style={styles.actionText}>Edit</Text>
+        <Text style={[styles.actionText, isDarkMode && styles.darkSubText]}>Edit</Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.actionButton} onPress={onDelete}>
         <MaterialCommunityIcons name="delete" size={20} color={COLORS.danger} />
-        <Text style={styles.actionText}>Delete</Text>
+        <Text style={[styles.actionText, isDarkMode && styles.darkSubText]}>Delete</Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.actionButton} onPress={onDownload}>
         <MaterialCommunityIcons name="download" size={20} color={COLORS.warning} />
-        <Text style={styles.actionText}>CSV</Text>
+        <Text style={[styles.actionText, isDarkMode && styles.darkSubText]}>CSV</Text>
       </TouchableOpacity>
     </View>
   </View>
 );
 
 // Modal Component
-const CustomModal = ({ visible, title, children, onClose, onConfirm }: any) => (
+const CustomModal = ({ visible, title, children, onClose, onConfirm, isDarkMode }: any) => (
   <Modal
     visible={visible}
     transparent={true}
@@ -112,19 +128,19 @@ const CustomModal = ({ visible, title, children, onClose, onConfirm }: any) => (
     onRequestClose={onClose}
   >
     <View style={styles.modalOverlay}>
-      <View style={styles.modalContent}>
-        <View style={styles.modalHeader}>
-          <Text style={styles.modalTitle}>{title}</Text>
+      <View style={[styles.modalContent, isDarkMode && styles.darkModalContent]}>
+        <View style={[styles.modalHeader, isDarkMode && styles.darkBorder]}>
+          <Text style={[styles.modalTitle, isDarkMode && styles.darkText]}>{title}</Text>
           <TouchableOpacity onPress={onClose}>
-            <MaterialCommunityIcons name="close" size={24} color={COLORS.primary} />
+            <MaterialCommunityIcons name="close" size={24} color={isDarkMode ? "#FFF" : COLORS.primary} />
           </TouchableOpacity>
         </View>
         <View style={styles.modalBody}>
           {children}
           {onConfirm && (
             <View style={styles.modalFooter}>
-              <TouchableOpacity style={styles.modalCancelButton} onPress={onClose}>
-                <Text style={styles.modalCancelText}>Cancel</Text>
+              <TouchableOpacity style={[styles.modalCancelButton, isDarkMode && styles.darkCancelButton]} onPress={onClose}>
+                <Text style={[styles.modalCancelText, isDarkMode && styles.darkSubText]}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.modalConfirmButton} onPress={onConfirm}>
                 <Text style={styles.modalConfirmText}>Confirm</Text>
@@ -146,6 +162,7 @@ export default function FieldsScreen() {
   const [viewField, setViewField] = useState<Field | null>(null);
   const [deleteFieldId, setDeleteFieldId] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const { isDarkMode } = useTheme();
 
   const [formData, setFormData] = useState({
     name: "",
@@ -271,11 +288,11 @@ export default function FieldsScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, isDarkMode && styles.darkContainer]}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
       
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, isDarkMode && styles.darkHeader]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <MaterialCommunityIcons name="arrow-left" size={24} color={COLORS.white} />
         </TouchableOpacity>
@@ -297,68 +314,68 @@ export default function FieldsScreen() {
         onRequestClose={() => setShowForm(false)}
       >
         <View style={styles.formModalOverlay}>
-          <View style={styles.formModalContent}>
-            <View style={styles.formModalHeader}>
-              <Text style={styles.formModalTitle}>
+          <View style={[styles.formModalContent, isDarkMode && styles.darkFormModalContent]}>
+            <View style={[styles.formModalHeader, isDarkMode && styles.darkBorder]}>
+              <Text style={[styles.formModalTitle, isDarkMode && styles.darkText]}>
                 {editingField ? "Edit Field" : "Add New Field"}
               </Text>
               <TouchableOpacity onPress={() => setShowForm(false)}>
-                <MaterialCommunityIcons name="close" size={24} color={COLORS.primary} />
+                <MaterialCommunityIcons name="close" size={24} color={isDarkMode ? "#FFF" : COLORS.primary} />
               </TouchableOpacity>
             </View>
 
             <ScrollView style={styles.formModalBody}>
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Field Name</Text>
+                <Text style={[styles.formLabel, isDarkMode && styles.darkText]}>Field Name</Text>
                 <TextInput
-                  style={styles.formInput}
+                  style={[styles.formInput, isDarkMode && styles.darkInput]}
                   value={formData.name}
                   onChangeText={(text) => setFormData({ ...formData, name: text })}
                   placeholder="e.g., Field A"
-                  placeholderTextColor={COLORS.text.light}
+                  placeholderTextColor={isDarkMode ? "#666" : COLORS.text.light}
                 />
               </View>
 
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Area (hectares)</Text>
+                <Text style={[styles.formLabel, isDarkMode && styles.darkText]}>Area (hectares)</Text>
                 <TextInput
-                  style={styles.formInput}
+                  style={[styles.formInput, isDarkMode && styles.darkInput]}
                   value={formData.area}
                   onChangeText={(text) => setFormData({ ...formData, area: text })}
                   placeholder="e.g., 5"
                   keyboardType="numeric"
-                  placeholderTextColor={COLORS.text.light}
+                  placeholderTextColor={isDarkMode ? "#666" : COLORS.text.light}
                 />
               </View>
 
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Crop Type</Text>
+                <Text style={[styles.formLabel, isDarkMode && styles.darkText]}>Crop Type</Text>
                 <TextInput
-                  style={styles.formInput}
+                  style={[styles.formInput, isDarkMode && styles.darkInput]}
                   value={formData.crop_type}
                   onChangeText={(text) => setFormData({ ...formData, crop_type: text })}
                   placeholder="e.g., Maize"
-                  placeholderTextColor={COLORS.text.light}
+                  placeholderTextColor={isDarkMode ? "#666" : COLORS.text.light}
                 />
               </View>
 
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Location</Text>
+                <Text style={[styles.formLabel, isDarkMode && styles.darkText]}>Location</Text>
                 <TextInput
-                  style={styles.formInput}
+                  style={[styles.formInput, isDarkMode && styles.darkInput]}
                   value={formData.location}
                   onChangeText={(text) => setFormData({ ...formData, location: text })}
                   placeholder="e.g., North Section"
-                  placeholderTextColor={COLORS.text.light}
+                  placeholderTextColor={isDarkMode ? "#666" : COLORS.text.light}
                 />
               </View>
 
               <View style={styles.formButtonContainer}>
                 <TouchableOpacity
-                  style={styles.formCancelButton}
+                  style={[styles.formCancelButton, isDarkMode && styles.darkCancelButton]}
                   onPress={() => setShowForm(false)}
                 >
-                  <Text style={styles.formCancelButtonText}>Cancel</Text>
+                  <Text style={[styles.formCancelButtonText, isDarkMode && styles.darkSubText]}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.formSubmitButton, submitting && styles.formSubmitButtonDisabled]}
@@ -384,20 +401,21 @@ export default function FieldsScreen() {
         visible={!!viewField}
         title="Field Details"
         onClose={() => setViewField(null)}
+        isDarkMode={isDarkMode}
       >
         {viewField && (
           <View>
-            <Text style={styles.detailText}>
-              <Text style={styles.detailLabel}>Name:</Text> {viewField.name}
+            <Text style={[styles.detailText, isDarkMode && styles.darkText]}>
+              <Text style={[styles.detailLabel, isDarkMode && styles.darkText]}>Name:</Text> {viewField.name}
             </Text>
-            <Text style={styles.detailText}>
-              <Text style={styles.detailLabel}>Area:</Text> {viewField.area} ha
+            <Text style={[styles.detailText, isDarkMode && styles.darkText]}>
+              <Text style={[styles.detailLabel, isDarkMode && styles.darkText]}>Area:</Text> {viewField.area} ha
             </Text>
-            <Text style={styles.detailText}>
-              <Text style={styles.detailLabel}>Crop:</Text> {viewField.crop_type || '-'}
+            <Text style={[styles.detailText, isDarkMode && styles.darkText]}>
+              <Text style={[styles.detailLabel, isDarkMode && styles.darkText]}>Crop:</Text> {viewField.crop_type || '-'}
             </Text>
-            <Text style={styles.detailText}>
-              <Text style={styles.detailLabel}>Location:</Text> {viewField.location || '-'}
+            <Text style={[styles.detailText, isDarkMode && styles.darkText]}>
+              <Text style={[styles.detailLabel, isDarkMode && styles.darkText]}>Location:</Text> {viewField.location || '-'}
             </Text>
           </View>
         )}
@@ -409,20 +427,21 @@ export default function FieldsScreen() {
         title="Confirm Delete"
         onClose={() => setDeleteFieldId(null)}
         onConfirm={handleDelete}
+        isDarkMode={isDarkMode}
       >
-        <Text style={styles.confirmText}>Are you sure you want to delete this field?</Text>
+        <Text style={[styles.confirmText, isDarkMode && styles.darkText]}>Are you sure you want to delete this field?</Text>
       </CustomModal>
 
       {/* Content */}
       {loading ? (
-        <View style={styles.loadingContainer}>
+        <View style={[styles.loadingContainer, isDarkMode && styles.darkContainer]}>
           <ActivityIndicator size="large" color={COLORS.primary} />
-          <Text style={styles.loadingText}>Loading fields...</Text>
+          <Text style={[styles.loadingText, isDarkMode && styles.darkText]}>Loading fields...</Text>
         </View>
       ) : fields.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <MaterialCommunityIcons name="terrain" size={60} color={COLORS.text.light} />
-          <Text style={styles.emptyText}>No fields added yet</Text>
+        <View style={[styles.emptyContainer, isDarkMode && styles.darkContainer]}>
+          <MaterialCommunityIcons name="terrain" size={60} color={isDarkMode ? "#555" : COLORS.text.light} />
+          <Text style={[styles.emptyText, isDarkMode && styles.darkSubText]}>No fields added yet</Text>
           <TouchableOpacity
             style={styles.emptyButton}
             onPress={() => {
@@ -455,6 +474,7 @@ export default function FieldsScreen() {
               onEdit={() => handleEdit(field)}
               onDelete={() => setDeleteFieldId(field.id)}
               onDownload={() => handleDownload(field)}
+              isDarkMode={isDarkMode}
             />
           ))}
         </ScrollView>
@@ -468,6 +488,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background.main,
   },
+  darkContainer: {
+    backgroundColor: DARK_COLORS.background.main,
+  },
   header: {
     backgroundColor: COLORS.primary,
     flexDirection: "row",
@@ -475,6 +498,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 12,
+  },
+  darkHeader: {
+    backgroundColor: "#1B5E20",
   },
   backButton: {
     padding: 8,
@@ -537,6 +563,9 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
+  darkCard: {
+    backgroundColor: DARK_COLORS.background.card,
+  },
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -577,6 +606,9 @@ const styles = StyleSheet.create({
     borderTopColor: COLORS.border,
     paddingTop: 12,
   },
+  darkBorder: {
+    borderTopColor: DARK_COLORS.border,
+  },
   actionButton: {
     alignItems: "center",
     gap: 4,
@@ -602,6 +634,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 5,
+  },
+  darkModalContent: {
+    backgroundColor: DARK_COLORS.background.card,
   },
   modalHeader: {
     flexDirection: "row",
@@ -630,6 +665,9 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 8,
     backgroundColor: COLORS.background.main,
+  },
+  darkCancelButton: {
+    backgroundColor: DARK_COLORS.background.main,
   },
   modalCancelText: {
     color: COLORS.text.secondary,
@@ -672,6 +710,9 @@ const styles = StyleSheet.create({
     width: "90%",
     maxHeight: "80%",
   },
+  darkFormModalContent: {
+    backgroundColor: DARK_COLORS.background.card,
+  },
   formModalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -705,6 +746,11 @@ const styles = StyleSheet.create({
     color: COLORS.text.primary,
     borderWidth: 1,
     borderColor: COLORS.border,
+  },
+  darkInput: {
+    backgroundColor: DARK_COLORS.background.main,
+    color: DARK_COLORS.text.primary,
+    borderColor: DARK_COLORS.border,
   },
   formButtonContainer: {
     flexDirection: "row",
@@ -740,5 +786,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: COLORS.white,
     fontWeight: "600",
+  },
+  // Dark mode text styles
+  darkText: {
+    color: DARK_COLORS.text.primary,
+  },
+  darkSubText: {
+    color: DARK_COLORS.text.secondary,
   },
 });

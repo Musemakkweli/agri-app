@@ -17,6 +17,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useTheme } from '../../context/ThemeContext';
 import BASE_URL from "../../services/api";
 
 const { width } = Dimensions.get("window");
@@ -77,35 +78,64 @@ interface Notification {
 }
 
 // Mini Card Component
-const MiniCard = ({ title, value, icon, color, onPress, loading }: any) => (
-  <TouchableOpacity style={styles.miniCard} onPress={onPress} disabled={loading}>
-    <View style={[styles.miniCardIcon, { backgroundColor: color + "15" }]}>
-      {loading ? (
-        <ActivityIndicator size="small" color={color} />
-      ) : (
-        <MaterialCommunityIcons name={icon} size={24} color={color} />
-      )}
-    </View>
-    <Text style={styles.miniCardValue}>{loading ? "..." : value}</Text>
-    <Text style={styles.miniCardTitle}>{title}</Text>
-  </TouchableOpacity>
-);
+const MiniCard = ({ title, value, icon, color = "#2E7D32", onPress, loading, isDarkMode }: any) => {
+  const [isPressed, setIsPressed] = useState(false);
+  
+  return (
+    <TouchableOpacity 
+      style={[
+        styles.miniCard, 
+        isDarkMode && styles.darkMiniCard,
+        isPressed && styles.miniCardPressed
+      ]} 
+      onPress={onPress} 
+      disabled={loading}
+      onPressIn={() => setIsPressed(true)}
+      onPressOut={() => setIsPressed(false)}
+      activeOpacity={1}
+    >
+      <View style={[styles.miniCardIcon, { backgroundColor: isDarkMode ? '#1B5E20' : '#c2f2c6' }]}>
+        {loading ? (
+          <ActivityIndicator size="small" color={color} />
+        ) : (
+          <MaterialCommunityIcons name={icon} size={28} color={color} />
+        )}
+      </View>
+      <Text style={[styles.miniCardValue, isDarkMode && styles.darkText]}>{loading ? "..." : value}</Text>
+      <Text style={[styles.miniCardTitle, isDarkMode && styles.darkSubText]}>{title}</Text>
+    </TouchableOpacity>
+  );
+};
 
 // Quick Action Button Component
-const QuickActionButton = ({ label, icon, color, onPress }: any) => (
-  <TouchableOpacity style={[styles.quickActionButton, { backgroundColor: color }]} onPress={onPress}>
-    <View style={styles.quickActionContent}>
-      <MaterialCommunityIcons name="plus" size={16} color="#FFF" style={styles.plusIcon} />
-      <MaterialCommunityIcons name={icon} size={20} color="#FFF" />
-    </View>
-    <Text style={styles.quickActionLabel}>{label}</Text>
-  </TouchableOpacity>
-);
+const QuickActionButton = ({ label, icon, onPress, isDarkMode }: any) => {
+  const [isPressed, setIsPressed] = useState(false);
+  const bgColor = isDarkMode ? '#1B5E20' : '#2E7D32';
+  
+  return (
+    <TouchableOpacity 
+      style={[
+        styles.quickActionButton, 
+        { backgroundColor: bgColor },
+        isPressed && styles.quickActionPressed
+      ]} 
+      onPress={onPress}
+      onPressIn={() => setIsPressed(true)}
+      onPressOut={() => setIsPressed(false)}
+      activeOpacity={1}
+    >
+      <View style={styles.quickActionContent}>
+        <MaterialCommunityIcons name={icon} size={24} color="#FFF" />
+      </View>
+      <Text style={styles.quickActionLabel}>{label}</Text>
+    </TouchableOpacity>
+  );
+};
 
 // Section Title
-const SectionTitle = ({ title, notificationCount }: { title: string; notificationCount?: number }) => (
+const SectionTitle = ({ title, notificationCount, isDarkMode }: { title: string; notificationCount?: number; isDarkMode: boolean }) => (
   <View style={styles.sectionTitleContainer}>
-    <Text style={styles.sectionTitle}>{title}</Text>
+    <Text style={[styles.sectionTitle, isDarkMode && styles.darkText]}>{title}</Text>
     {notificationCount ? (
       <View style={styles.notificationBadge}>
         <Text style={styles.notificationText}>{notificationCount}</Text>
@@ -115,42 +145,68 @@ const SectionTitle = ({ title, notificationCount }: { title: string; notificatio
 );
 
 // Recent Item Component
-const RecentItem = ({ icon, title, subtitle, status, statusColor, onPress }: any) => (
-  <TouchableOpacity style={styles.recentItem} onPress={onPress}>
-    <View style={[styles.recentIcon, { backgroundColor: statusColor + "15" }]}>
-      <MaterialCommunityIcons name={icon} size={20} color={statusColor} />
-    </View>
-    <View style={styles.recentContent}>
-      <Text style={styles.recentTitle}>{title}</Text>
-      <Text style={styles.recentSubtitle}>{subtitle}</Text>
-    </View>
-    <View style={[styles.recentStatus, { backgroundColor: statusColor + "15" }]}>
-      <Text style={[styles.recentStatusText, { color: statusColor }]}>{status}</Text>
-    </View>
-  </TouchableOpacity>
-);
+const RecentItem = ({ icon, title, subtitle, status, statusColor = "#8B5A2B", onPress, isDarkMode }: any) => {
+  const [isPressed, setIsPressed] = useState(false);
+  
+  return (
+    <TouchableOpacity 
+      style={[
+        styles.recentItem, 
+        isDarkMode && styles.darkRecentItem,
+        isPressed && styles.recentItemPressed
+      ]} 
+      onPress={onPress}
+      onPressIn={() => setIsPressed(true)}
+      onPressOut={() => setIsPressed(false)}
+      activeOpacity={1}
+    >
+      <View style={[styles.recentIcon, { backgroundColor: isDarkMode ? '#1B5E20' : '#E8F5E9' }]}>
+        <MaterialCommunityIcons name={icon} size={22} color={statusColor} />
+      </View>
+      <View style={styles.recentContent}>
+        <Text style={[styles.recentTitle, isDarkMode && styles.darkText]} numberOfLines={1}>{title}</Text>
+        <Text style={[styles.recentSubtitle, isDarkMode && styles.darkSubText]} numberOfLines={1}>{subtitle}</Text>
+      </View>
+      <View style={[styles.recentStatus, { backgroundColor: isDarkMode ? '#1B5E20' : '#E8F5E9' }]}>
+        <Text style={[styles.recentStatusText, { color: statusColor }]}>{status}</Text>
+      </View>
+    </TouchableOpacity>
+  );
+};
 
 // Notification Item Component
-const NotificationItem = ({ notification, onPress }: { notification: Notification; onPress: () => void }) => (
-  <TouchableOpacity 
-    style={[styles.notificationItem, !notification.read && styles.unreadNotification]} 
-    onPress={onPress}
-  >
-    <View style={[styles.notificationIcon, { backgroundColor: notification.type === 'alert' ? '#8B5A2B15' : '#2E7D3215' }]}>
-      <MaterialCommunityIcons 
-        name={notification.type === 'alert' ? 'alert' : 'information'} 
-        size={24} 
-        color={notification.type === 'alert' ? '#8B5A2B' : '#2E7D32'} 
-      />
-    </View>
-    <View style={styles.notificationContent}>
-      <Text style={styles.notificationTitle}>{notification.title}</Text>
-      <Text style={styles.notificationMessage}>{notification.message}</Text>
-      <Text style={styles.notificationTime}>{notification.time}</Text>
-    </View>
-    {!notification.read && <View style={styles.unreadDot} />}
-  </TouchableOpacity>
-);
+const NotificationItem = ({ notification, onPress, isDarkMode }: { notification: Notification; onPress: () => void; isDarkMode: boolean }) => {
+  const [isPressed, setIsPressed] = useState(false);
+  
+  return (
+    <TouchableOpacity 
+      style={[
+        styles.notificationItem, 
+        !notification.read && styles.unreadNotification,
+        isDarkMode && styles.darkNotificationItem,
+        isPressed && styles.notificationItemPressed
+      ]} 
+      onPress={onPress}
+      onPressIn={() => setIsPressed(true)}
+      onPressOut={() => setIsPressed(false)}
+      activeOpacity={1}
+    >
+      <View style={[styles.notificationIcon, { backgroundColor: isDarkMode ? '#1B5E20' : '#E8F5E9' }]}>
+        <MaterialCommunityIcons 
+          name={notification.type === 'alert' ? 'alert' : 'information'} 
+          size={24} 
+          color={isDarkMode ? '#FFF' : '#2E7D32'} 
+        />
+      </View>
+      <View style={styles.notificationContent}>
+        <Text style={[styles.notificationTitle, isDarkMode && styles.darkText]}>{notification.title}</Text>
+        <Text style={[styles.notificationMessage, isDarkMode && styles.darkSubText]}>{notification.message}</Text>
+        <Text style={[styles.notificationTime, isDarkMode && styles.darkSubText]}>{notification.time}</Text>
+      </View>
+      {!notification.read && <View style={styles.unreadDot} />}
+    </TouchableOpacity>
+  );
+};
 
 // Form Modal Component
 const FormModal = ({ 
@@ -158,13 +214,15 @@ const FormModal = ({
   onClose, 
   title, 
   children,
-  loading 
+  loading,
+  isDarkMode
 }: { 
   visible: boolean; 
   onClose: () => void; 
   title: string; 
   children: React.ReactNode;
   loading?: boolean;
+  isDarkMode: boolean;
 }) => (
   <Modal
     visible={visible}
@@ -173,14 +231,14 @@ const FormModal = ({
     onRequestClose={onClose}
   >
     <View style={styles.formModalOverlay}>
-      <View style={styles.formModalContent}>
-        <View style={styles.formModalHeader}>
-          <Text style={styles.formModalTitle}>{title}</Text>
+      <View style={[styles.formModalContent, isDarkMode && styles.darkFormModalContent]}>
+        <View style={[styles.formModalHeader, isDarkMode && styles.darkFormModalHeader]}>
+          <Text style={[styles.formModalTitle, isDarkMode && styles.darkText]}>{title}</Text>
           <TouchableOpacity onPress={onClose} disabled={loading}>
-            <MaterialCommunityIcons name="close" size={24} color={loading ? "#ccc" : "#2E7D32"} />
+            <MaterialCommunityIcons name="close" size={24} color={loading ? "#ccc" : isDarkMode ? "#FFF" : "#2E7D32"} />
           </TouchableOpacity>
         </View>
-        <ScrollView style={styles.formModalBody}>
+        <ScrollView style={styles.formModalBody} showsVerticalScrollIndicator={false}>
           {children}
         </ScrollView>
       </View>
@@ -195,6 +253,7 @@ export default function FarmerDashboard() {
   const [userId, setUserId] = useState<number | null>(null);
   const [selectedTab, setSelectedTab] = useState("overview");
   const [showNotifications, setShowNotifications] = useState(false);
+  const { isDarkMode } = useTheme();
   
   // Dashboard data - initialize as empty arrays
   const [fields, setFields] = useState<Field[]>([]);
@@ -220,7 +279,7 @@ export default function FarmerDashboard() {
   const [harvestForm, setHarvestForm] = useState({
     field_id: "",
     crop_type: "",
-    harvest_date: ""
+    harvest_date: new Date().toISOString().split('T')[0]
   });
   
   const [pestForm, setPestForm] = useState({
@@ -264,92 +323,67 @@ export default function FarmerDashboard() {
   };
 
   const loadDashboardData = async () => {
-  try {
-    const token = await AsyncStorage.getItem("token") || await AsyncStorage.getItem("user_token");
-    
-    if (!token || !userId) {
-      throw new Error("No authentication token");
-    }
-
-    const headers = { Authorization: `Bearer ${token}` };
-
-    // Fetch fields
     try {
-      const fieldsRes = await axios.get(`${BASE_URL}/fields/user/${userId}`, { headers });
-      // Check if it's an array, if not, set empty array
-      setFields(Array.isArray(fieldsRes.data) ? fieldsRes.data : []);
-      console.log("Fields loaded:", Array.isArray(fieldsRes.data) ? fieldsRes.data.length : 0);
-    } catch (error: any) {
-      if (error.response?.status === 404) {
-        setFields([]);
-      } else {
+      const token = await AsyncStorage.getItem("token") || await AsyncStorage.getItem("user_token");
+      
+      if (!token || !userId) {
+        throw new Error("No authentication token");
+      }
+
+      const headers = { Authorization: `Bearer ${token}` };
+
+      // Fetch fields
+      try {
+        const fieldsRes = await axios.get(`${BASE_URL}/fields/user/${userId}`, { headers });
+        setFields(Array.isArray(fieldsRes.data) ? fieldsRes.data : []);
+      } catch (error: any) {
         console.log("Fields endpoint error:", error.message);
         setFields([]);
       }
-    }
 
-    // Fetch harvests
-    try {
-      const harvestsRes = await axios.get(`${BASE_URL}/harvests/user/${userId}`, { headers });
-      // Check if it's an array, if not, set empty array
-      setHarvests(Array.isArray(harvestsRes.data) ? harvestsRes.data : []);
-      console.log("Harvests loaded:", Array.isArray(harvestsRes.data) ? harvestsRes.data.length : 0);
-    } catch (error: any) {
-      if (error.response?.status === 404) {
-        setHarvests([]);
-      } else {
+      // Fetch harvests
+      try {
+        const harvestsRes = await axios.get(`${BASE_URL}/harvests/user/${userId}`, { headers });
+        setHarvests(Array.isArray(harvestsRes.data) ? harvestsRes.data : []);
+      } catch (error: any) {
         console.log("Harvests endpoint error:", error.message);
         setHarvests([]);
       }
-    }
 
-    // Fetch pests
-    try {
-      const pestsRes = await axios.get(`${BASE_URL}/pest-alerts/user/${userId}`, { headers });
-      // Check if it's an array, if not, set empty array
-      setPests(Array.isArray(pestsRes.data) ? pestsRes.data : []);
-      console.log("Pests loaded:", Array.isArray(pestsRes.data) ? pestsRes.data.length : 0);
-    } catch (error: any) {
-      if (error.response?.status === 404) {
-        setPests([]);
-      } else {
+      // Fetch pests
+      try {
+        const pestsRes = await axios.get(`${BASE_URL}/pest-alerts/user/${userId}`, { headers });
+        setPests(Array.isArray(pestsRes.data) ? pestsRes.data : []);
+      } catch (error: any) {
         console.log("Pests endpoint error:", error.message);
         setPests([]);
       }
-    }
 
-    // Fetch weather alerts
-    try {
-      const weatherRes = await axios.get(`${BASE_URL}/weather-alerts`, { headers });
-      // Check if it's an array, if not, set empty array
-      setWeatherAlerts(Array.isArray(weatherRes.data) ? weatherRes.data : []);
-    } catch (error: any) {
-      console.log("Weather alerts endpoint error:", error.message);
-      setWeatherAlerts([]);
-    }
+      // Fetch weather alerts
+      try {
+        const weatherRes = await axios.get(`${BASE_URL}/weather-alerts`, { headers });
+        setWeatherAlerts(Array.isArray(weatherRes.data) ? weatherRes.data : []);
+      } catch (error: any) {
+        console.log("Weather alerts endpoint error:", error.message);
+        setWeatherAlerts([]);
+      }
 
-    // Fetch complaints
-    try {
-      const complaintsRes = await axios.get(`${BASE_URL}/complaints/user/${userId}`, { headers });
-      // Check if it's an array, if not, set empty array
-      setComplaints(Array.isArray(complaintsRes.data) ? complaintsRes.data : []);
-      console.log("Complaints loaded:", Array.isArray(complaintsRes.data) ? complaintsRes.data.length : 0);
-    } catch (error: any) {
-      if (error.response?.status === 404) {
-        setComplaints([]);
-      } else {
+      // Fetch complaints
+      try {
+        const complaintsRes = await axios.get(`${BASE_URL}/complaints/user/${userId}`, { headers });
+        setComplaints(Array.isArray(complaintsRes.data) ? complaintsRes.data : []);
+      } catch (error: any) {
         console.log("Complaints endpoint error:", error.message);
         setComplaints([]);
       }
-    }
 
-  } catch (error) {
-    console.error("Error loading dashboard:", error);
-  } finally {
-    setLoading(false);
-    setRefreshing(false);
-  }
-};
+    } catch (error) {
+      console.error("Error loading dashboard:", error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
   const loadNotifications = async () => {
     try {
@@ -375,14 +409,9 @@ export default function FarmerDashboard() {
         setNotifications(formattedNotifs);
         setUnreadCount(formattedNotifs.filter(n => !n.read).length);
       } catch (error: any) {
-        if (error.response?.status === 404) {
-          setNotifications([]);
-          setUnreadCount(0);
-        } else {
-          console.log("Notifications endpoint error:", error.message);
-          setNotifications([]);
-          setUnreadCount(0);
-        }
+        console.log("Notifications endpoint error:", error.message);
+        setNotifications([]);
+        setUnreadCount(0);
       }
 
     } catch (error) {
@@ -414,37 +443,6 @@ export default function FarmerDashboard() {
     setRefreshing(true);
     loadDashboardData();
     loadNotifications();
-  };
-
-  const handleCardPress = (title: string): void => {
-    const routes: { [key: string]: string } = {
-      "Fields": "/fields",
-      "Harvests": "/harvests",
-      "Pests": "/pests",
-      "Weather": "/weather",
-      "Complaints": "/complaint"
-    };
-    
-    if (routes[title]) {
-      router.push(routes[title] as any);
-    }
-  };
-
-  const handleQuickAction = (action: string): void => {
-    switch(action) {
-      case "Add Field":
-        setShowFieldForm(true);
-        break;
-      case "Schedule Harvest":
-        setShowHarvestForm(true);
-        break;
-      case "Report Pest":
-        setShowPestForm(true);
-        break;
-      case "New Complaint":
-        router.push("/complaint");
-        break;
-    }
   };
 
   const handleNotificationPress = async (notification: Notification) => {
@@ -509,27 +507,11 @@ export default function FarmerDashboard() {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      // Reload dashboard data immediately
       await loadDashboardData();
       
-      Alert.alert("Success", "Field added successfully!", [
-        {
-          text: "View Fields",
-          onPress: () => {
-            setShowFieldForm(false);
-            setFieldForm({ name: "", area: "", crop_type: "", location: "" });
-            router.push("/fields");
-          }
-        },
-        {
-          text: "Stay Here",
-          onPress: () => {
-            setShowFieldForm(false);
-            setFieldForm({ name: "", area: "", crop_type: "", location: "" });
-          },
-          style: "cancel"
-        }
-      ]);
+      Alert.alert("Success", "Field added successfully!");
+      setShowFieldForm(false);
+      setFieldForm({ name: "", area: "", crop_type: "", location: "" });
     } catch (error: any) {
       Alert.alert("Error", error.response?.data?.detail || "Failed to add field");
     } finally {
@@ -557,27 +539,11 @@ export default function FarmerDashboard() {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      // Reload dashboard data immediately
       await loadDashboardData();
       
-      Alert.alert("Success", "Harvest scheduled successfully!", [
-        {
-          text: "View Harvests",
-          onPress: () => {
-            setShowHarvestForm(false);
-            setHarvestForm({ field_id: "", crop_type: "", harvest_date: "" });
-            router.push("/harvests");
-          }
-        },
-        {
-          text: "Stay Here",
-          onPress: () => {
-            setShowHarvestForm(false);
-            setHarvestForm({ field_id: "", crop_type: "", harvest_date: "" });
-          },
-          style: "cancel"
-        }
-      ]);
+      Alert.alert("Success", "Harvest scheduled successfully!");
+      setShowHarvestForm(false);
+      setHarvestForm({ field_id: "", crop_type: "", harvest_date: new Date().toISOString().split('T')[0] });
     } catch (error: any) {
       Alert.alert("Error", error.response?.data?.detail || "Failed to schedule harvest");
     } finally {
@@ -605,27 +571,11 @@ export default function FarmerDashboard() {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      // Reload dashboard data immediately
       await loadDashboardData();
       
-      Alert.alert("Success", "Pest reported successfully!", [
-        {
-          text: "View Pest Alerts",
-          onPress: () => {
-            setShowPestForm(false);
-            setPestForm({ field_id: "", pest_type: "", severity: "", description: "" });
-            router.push("/pests");
-          }
-        },
-        {
-          text: "Stay Here",
-          onPress: () => {
-            setShowPestForm(false);
-            setPestForm({ field_id: "", pest_type: "", severity: "", description: "" });
-          },
-          style: "cancel"
-        }
-      ]);
+      Alert.alert("Success", "Pest reported successfully!");
+      setShowPestForm(false);
+      setPestForm({ field_id: "", pest_type: "", severity: "", description: "" });
     } catch (error: any) {
       Alert.alert("Error", error.response?.data?.detail || "Failed to report pest");
     } finally {
@@ -635,16 +585,8 @@ export default function FarmerDashboard() {
 
   // Format recent complaints
   const recentComplaints: RecentComplaint[] = complaints.slice(0, 3).map(c => {
-    let statusColor = "#8B5A2B";
-    let icon: any = "alert-circle";
-    
-    if (c.status?.toLowerCase() === "resolved") {
-      statusColor = "#4CAF50";
-      icon = "check-circle";
-    } else if (c.status?.toLowerCase() === "in progress") {
-      statusColor = "#2196F3";
-      icon = "progress-clock";
-    }
+    const statusColor = "#8B5A2B";
+    const icon: any = "alert-circle";
     
     return {
       id: c.id,
@@ -658,23 +600,22 @@ export default function FarmerDashboard() {
   });
 
   const pendingComplaints = complaints.filter(c => c.status?.toLowerCase() === "pending").length;
-  const newPests = pests.filter(p => p.severity?.toLowerCase() === "high").length;
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={[styles.loadingContainer, isDarkMode && styles.darkContainer]}>
         <ActivityIndicator size="large" color="#2E7D32" />
-        <Text style={styles.loadingText}>Loading your farm data...</Text>
+        <Text style={[styles.loadingText, isDarkMode && styles.darkText]}>Loading your farm data...</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#2E7D32" />
+    <View style={[styles.container, isDarkMode && styles.darkContainer]}>
+      <StatusBar barStyle="light-content" backgroundColor={isDarkMode ? "#1B5E20" : "#2E7D32"} />
       
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, isDarkMode && styles.darkHeader]}>
         <View>
           <Text style={styles.greeting}>Welcome back,</Text>
           <Text style={styles.userName}>{userName}! 🌱</Text>
@@ -705,33 +646,34 @@ export default function FarmerDashboard() {
         onRequestClose={() => setShowNotifications(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Notifications</Text>
+          <View style={[styles.modalContent, isDarkMode && styles.darkModalContent]}>
+            <View style={[styles.modalHeader, isDarkMode && styles.darkModalHeader]}>
+              <Text style={[styles.modalTitle, isDarkMode && styles.darkText]}>Notifications</Text>
               <View style={styles.modalHeaderRight}>
                 {unreadCount > 0 && (
                   <TouchableOpacity onPress={markAllAsRead}>
-                    <Text style={styles.markAllRead}>Mark all as read</Text>
+                    <Text style={[styles.markAllRead, isDarkMode && styles.darkSubText]}>Mark all as read</Text>
                   </TouchableOpacity>
                 )}
                 <TouchableOpacity onPress={() => setShowNotifications(false)}>
-                  <MaterialCommunityIcons name="close" size={24} color="#2E7D32" />
+                  <MaterialCommunityIcons name="close" size={24} color={isDarkMode ? "#FFF" : "#2E7D32"} />
                 </TouchableOpacity>
               </View>
             </View>
-            <ScrollView style={styles.notificationList}>
+            <ScrollView style={styles.notificationList} showsVerticalScrollIndicator={false}>
               {notifications.length > 0 ? (
                 notifications.map(notification => (
                   <NotificationItem 
                     key={notification.id} 
                     notification={notification}
                     onPress={() => handleNotificationPress(notification)}
+                    isDarkMode={isDarkMode}
                   />
                 ))
               ) : (
                 <View style={styles.emptyNotifications}>
-                  <MaterialCommunityIcons name="bell-off" size={48} color="#ccc" />
-                  <Text style={styles.emptyNotificationsText}>No notifications</Text>
+                  <MaterialCommunityIcons name="bell-off" size={48} color={isDarkMode ? "#555" : "#ccc"} />
+                  <Text style={[styles.emptyNotificationsText, isDarkMode && styles.darkSubText]}>No notifications</Text>
                 </View>
               )}
             </ScrollView>
@@ -740,24 +682,30 @@ export default function FarmerDashboard() {
       </Modal>
 
       {/* Tab Selector */}
-      <View style={styles.tabContainer}>
+      <View style={[styles.tabContainer, isDarkMode && styles.darkTabContainer]}>
         <TouchableOpacity 
           style={[styles.tab, selectedTab === "overview" && styles.activeTab]}
           onPress={() => setSelectedTab("overview")}
         >
-          <Text style={[styles.tabText, selectedTab === "overview" && styles.activeTabText]}>Overview</Text>
+          <Text style={[styles.tabText, selectedTab === "overview" && styles.activeTabText, isDarkMode && styles.darkSubText]}>
+            Overview
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity 
           style={[styles.tab, selectedTab === "activities" && styles.activeTab]}
           onPress={() => setSelectedTab("activities")}
         >
-          <Text style={[styles.tabText, selectedTab === "activities" && styles.activeTabText]}>Activities</Text>
+          <Text style={[styles.tabText, selectedTab === "activities" && styles.activeTabText, isDarkMode && styles.darkSubText]}>
+            Activities
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity 
           style={[styles.tab, selectedTab === "alerts" && styles.activeTab]}
           onPress={() => setSelectedTab("alerts")}
         >
-          <Text style={[styles.tabText, selectedTab === "alerts" && styles.activeTabText]}>Alerts</Text>
+          <Text style={[styles.tabText, selectedTab === "alerts" && styles.activeTabText, isDarkMode && styles.darkSubText]}>
+            Alerts
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -768,75 +716,99 @@ export default function FarmerDashboard() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#2E7D32"]} />
         }
       >
-        {/* Mini Cards Grid */}
-        <SectionTitle title="Farm Overview" />
+        {/* Mini Cards Grid - 2 per row */}
+        <SectionTitle title="Farm Overview" isDarkMode={isDarkMode} />
         <View style={styles.miniCardsGrid}>
-          <MiniCard 
-            title="Fields" 
-            value={fields.length} 
-            icon="terrain" 
-            color="#2E7D32"
-            onPress={() => router.push("/fields")}
-          />
-          <MiniCard 
-            title="Harvests" 
-            value={harvests.length} 
-            icon="calendar-check" 
-            color="#8B5A2B"
-            onPress={() => router.push("/harvests")}
-          />
-          <MiniCard 
-            title="Pests" 
-            value={pests.length} 
-            icon="bug" 
-            color="#8B5A2B"
-            onPress={() => router.push("/pests")}
-          />
-          <MiniCard 
-            title="Complaints" 
-            value={complaints.length} 
-            icon="alert-circle" 
-            color="#2E7D32"
-            onPress={() => router.push("/complaint")}
-          />
+          <View style={styles.row}>
+            <View style={styles.cardContainer}>
+              <MiniCard 
+                title="Fields" 
+                value={fields.length} 
+                icon="terrain" 
+                onPress={() => router.push("/fields")}
+                isDarkMode={isDarkMode}
+              />
+            </View>
+            <View style={styles.cardContainer}>
+              <MiniCard 
+                title="Harvests" 
+                value={harvests.length} 
+                icon="calendar-check" 
+                onPress={() => router.push("/harvests")}
+                isDarkMode={isDarkMode}
+              />
+            </View>
+          </View>
+          <View style={styles.row}>
+            <View style={styles.cardContainer}>
+              <MiniCard 
+                title="Pests" 
+                value={pests.length} 
+                icon="bug" 
+                onPress={() => router.push("/pests")}
+                isDarkMode={isDarkMode}
+              />
+            </View>
+            <View style={styles.cardContainer}>
+              <MiniCard 
+                title="Complaints" 
+                value={complaints.length} 
+                icon="alert-circle" 
+                onPress={() => router.push("/complaint")}
+                isDarkMode={isDarkMode}
+              />
+            </View>
+          </View>
         </View>
 
-        {/* Quick Actions */}
-        <SectionTitle title="Quick Actions" />
+        {/* Quick Actions - 2 per row */}
+        <SectionTitle title="Quick Actions" isDarkMode={isDarkMode} />
         <View style={styles.quickActionsGrid}>
-          <QuickActionButton 
-            label="Add Field" 
-            icon="terrain" 
-            color="#2E7D32"
-            onPress={() => setShowFieldForm(true)}
-          />
-          <QuickActionButton 
-            label="Schedule Harvest" 
-            icon="calendar-plus" 
-            color="#8B5A2B"
-            onPress={() => setShowHarvestForm(true)}
-          />
-          <QuickActionButton 
-            label="Report Pest" 
-            icon="bug" 
-            color="#2E7D32"
-            onPress={() => setShowPestForm(true)}
-          />
-          <QuickActionButton 
-            label="New Complaint" 
-            icon="alert" 
-            color="#8B5A2B"
-            onPress={() => router.push("/complaint")}
-          />
+          <View style={styles.row}>
+            <View style={styles.cardContainer}>
+              <QuickActionButton 
+                label="Add Field" 
+                icon="terrain" 
+                onPress={() => setShowFieldForm(true)}
+                isDarkMode={isDarkMode}
+              />
+            </View>
+            <View style={styles.cardContainer}>
+              <QuickActionButton 
+                label="Harvest" 
+                icon="calendar-plus" 
+                onPress={() => setShowHarvestForm(true)}
+                isDarkMode={isDarkMode}
+              />
+            </View>
+          </View>
+          <View style={styles.row}>
+            <View style={styles.cardContainer}>
+              <QuickActionButton 
+                label="Report Pest" 
+                icon="bug" 
+                onPress={() => setShowPestForm(true)}
+                isDarkMode={isDarkMode}
+              />
+            </View>
+            <View style={styles.cardContainer}>
+              <QuickActionButton 
+                label="Complaint" 
+                icon="alert" 
+                onPress={() => router.push("/complaint")}
+                isDarkMode={isDarkMode}
+              />
+            </View>
+          </View>
         </View>
 
         {/* Recent Complaints */}
         {recentComplaints.length > 0 && (
           <View style={styles.recentSection}>
             <View style={styles.recentHeader}>
-              <SectionTitle title="Recent Complaints" notificationCount={pendingComplaints} />
+              <SectionTitle title="Recent Complaints" notificationCount={pendingComplaints} isDarkMode={isDarkMode} />
               <TouchableOpacity onPress={() => router.push("/complaint")}>
-                <Text style={styles.viewAllLink}>View All</Text>
+                <Text style={[styles.viewAllLink, isDarkMode && styles.darkText]}>View All</Text>
               </TouchableOpacity>
             </View>
             {recentComplaints.map(item => (
@@ -846,9 +818,33 @@ export default function FarmerDashboard() {
                 title={item.type}
                 subtitle={`${item.field} • ${item.date}`}
                 status={item.status}
-                statusColor={item.statusColor}
                 onPress={() => router.push(`/complaint/${item.id}` as any)}
+                isDarkMode={isDarkMode}
               />
+            ))}
+          </View>
+        )}
+
+        {/* Weather Alerts */}
+        {weatherAlerts.length > 0 && (
+          <View style={styles.recentSection}>
+            <SectionTitle title="Weather Alerts" isDarkMode={isDarkMode} />
+            {weatherAlerts.map(alert => (
+              <View key={alert.id} style={[styles.alertCard, isDarkMode && styles.darkAlertCard]}>
+                <View style={[styles.alertIcon, { backgroundColor: isDarkMode ? '#1B5E20' : '#E8F5E9' }]}>
+                  <MaterialCommunityIcons name="weather-lightning-rainy" size={24} color={isDarkMode ? '#FFF' : '#8B5A2B'} />
+                </View>
+                <View style={styles.alertContent}>
+                  <Text style={[styles.alertTitle, isDarkMode && styles.darkText]}>{alert.type}</Text>
+                  <Text style={[styles.alertMessage, isDarkMode && styles.darkSubText]}>{alert.message}</Text>
+                  <Text style={[styles.alertDate, isDarkMode && styles.darkSubText]}>{alert.date}</Text>
+                </View>
+                <View style={[styles.alertSeverity, { backgroundColor: isDarkMode ? '#1B5E20' : '#E8F5E9' }]}>
+                  <Text style={[styles.alertSeverityText, { color: isDarkMode ? '#FFF' : '#8B5A2B' }]}>
+                    {alert.severity}
+                  </Text>
+                </View>
+              </View>
             ))}
           </View>
         )}
@@ -863,63 +859,64 @@ export default function FarmerDashboard() {
         onClose={() => setShowFieldForm(false)}
         title="Add New Field"
         loading={submitting}
+        isDarkMode={isDarkMode}
       >
         <View style={styles.formGroup}>
-          <Text style={styles.formLabel}>Field Name</Text>
+          <Text style={[styles.formLabel, isDarkMode && styles.darkText]}>Field Name</Text>
           <TextInput
-            style={styles.formInput}
+            style={[styles.formInput, isDarkMode && styles.darkFormInput]}
             value={fieldForm.name}
             onChangeText={(text) => setFieldForm({...fieldForm, name: text})}
             placeholder="e.g., Field A"
-            placeholderTextColor="#999"
+            placeholderTextColor={isDarkMode ? "#AAA" : "#999"}
             editable={!submitting}
           />
         </View>
         
         <View style={styles.formGroup}>
-          <Text style={styles.formLabel}>Area (hectares)</Text>
+          <Text style={[styles.formLabel, isDarkMode && styles.darkText]}>Area (hectares)</Text>
           <TextInput
-            style={styles.formInput}
+            style={[styles.formInput, isDarkMode && styles.darkFormInput]}
             value={fieldForm.area}
             onChangeText={(text) => setFieldForm({...fieldForm, area: text})}
             placeholder="e.g., 5"
             keyboardType="numeric"
-            placeholderTextColor="#999"
+            placeholderTextColor={isDarkMode ? "#AAA" : "#999"}
             editable={!submitting}
           />
         </View>
         
         <View style={styles.formGroup}>
-          <Text style={styles.formLabel}>Crop Type</Text>
+          <Text style={[styles.formLabel, isDarkMode && styles.darkText]}>Crop Type</Text>
           <TextInput
-            style={styles.formInput}
+            style={[styles.formInput, isDarkMode && styles.darkFormInput]}
             value={fieldForm.crop_type}
             onChangeText={(text) => setFieldForm({...fieldForm, crop_type: text})}
             placeholder="e.g., Maize"
-            placeholderTextColor="#999"
+            placeholderTextColor={isDarkMode ? "#AAA" : "#999"}
             editable={!submitting}
           />
         </View>
         
         <View style={styles.formGroup}>
-          <Text style={styles.formLabel}>Location</Text>
+          <Text style={[styles.formLabel, isDarkMode && styles.darkText]}>Location</Text>
           <TextInput
-            style={styles.formInput}
+            style={[styles.formInput, isDarkMode && styles.darkFormInput]}
             value={fieldForm.location}
             onChangeText={(text) => setFieldForm({...fieldForm, location: text})}
             placeholder="e.g., North Section"
-            placeholderTextColor="#999"
+            placeholderTextColor={isDarkMode ? "#AAA" : "#999"}
             editable={!submitting}
           />
         </View>
         
         <View style={styles.formButtonContainer}>
           <TouchableOpacity 
-            style={styles.formCancelButton} 
+            style={[styles.formCancelButton, isDarkMode && styles.darkFormCancelButton]} 
             onPress={() => setShowFieldForm(false)}
             disabled={submitting}
           >
-            <Text style={styles.formCancelButtonText}>Cancel</Text>
+            <Text style={[styles.formCancelButtonText, isDarkMode && styles.darkText]}>Cancel</Text>
           </TouchableOpacity>
           <TouchableOpacity 
             style={[styles.formSubmitButton, submitting && styles.formSubmitButtonDisabled]} 
@@ -941,23 +938,26 @@ export default function FarmerDashboard() {
         onClose={() => setShowHarvestForm(false)}
         title="Schedule Harvest"
         loading={submitting}
+        isDarkMode={isDarkMode}
       >
         <View style={styles.formGroup}>
-          <Text style={styles.formLabel}>Select Field</Text>
+          <Text style={[styles.formLabel, isDarkMode && styles.darkText]}>Select Field</Text>
           <View style={styles.pickerContainer}>
             {fields.map((field) => (
               <TouchableOpacity
                 key={field.id}
                 style={[
                   styles.pickerOption,
-                  harvestForm.field_id === field.id.toString() && styles.pickerOptionSelected
+                  harvestForm.field_id === field.id.toString() && styles.pickerOptionSelected,
+                  isDarkMode && styles.darkPickerOption
                 ]}
                 onPress={() => setHarvestForm({...harvestForm, field_id: field.id.toString()})}
                 disabled={submitting}
               >
                 <Text style={[
                   styles.pickerOptionText,
-                  harvestForm.field_id === field.id.toString() && styles.pickerOptionTextSelected
+                  harvestForm.field_id === field.id.toString() && styles.pickerOptionTextSelected,
+                  isDarkMode && styles.darkText
                 ]}>
                   {field.name}
                 </Text>
@@ -967,36 +967,36 @@ export default function FarmerDashboard() {
         </View>
         
         <View style={styles.formGroup}>
-          <Text style={styles.formLabel}>Crop Type</Text>
+          <Text style={[styles.formLabel, isDarkMode && styles.darkText]}>Crop Type</Text>
           <TextInput
-            style={styles.formInput}
+            style={[styles.formInput, isDarkMode && styles.darkFormInput]}
             value={harvestForm.crop_type}
             onChangeText={(text) => setHarvestForm({...harvestForm, crop_type: text})}
             placeholder="e.g., Maize"
-            placeholderTextColor="#999"
+            placeholderTextColor={isDarkMode ? "#AAA" : "#999"}
             editable={!submitting}
           />
         </View>
         
         <View style={styles.formGroup}>
-          <Text style={styles.formLabel}>Harvest Date</Text>
+          <Text style={[styles.formLabel, isDarkMode && styles.darkText]}>Harvest Date</Text>
           <TextInput
-            style={styles.formInput}
+            style={[styles.formInput, isDarkMode && styles.darkFormInput]}
             value={harvestForm.harvest_date}
             onChangeText={(text) => setHarvestForm({...harvestForm, harvest_date: text})}
             placeholder="YYYY-MM-DD"
-            placeholderTextColor="#999"
+            placeholderTextColor={isDarkMode ? "#AAA" : "#999"}
             editable={!submitting}
           />
         </View>
         
         <View style={styles.formButtonContainer}>
           <TouchableOpacity 
-            style={styles.formCancelButton} 
+            style={[styles.formCancelButton, isDarkMode && styles.darkFormCancelButton]} 
             onPress={() => setShowHarvestForm(false)}
             disabled={submitting}
           >
-            <Text style={styles.formCancelButtonText}>Cancel</Text>
+            <Text style={[styles.formCancelButtonText, isDarkMode && styles.darkText]}>Cancel</Text>
           </TouchableOpacity>
           <TouchableOpacity 
             style={[styles.formSubmitButton, submitting && styles.formSubmitButtonDisabled]} 
@@ -1018,23 +1018,26 @@ export default function FarmerDashboard() {
         onClose={() => setShowPestForm(false)}
         title="Report Pest"
         loading={submitting}
+        isDarkMode={isDarkMode}
       >
         <View style={styles.formGroup}>
-          <Text style={styles.formLabel}>Select Field</Text>
+          <Text style={[styles.formLabel, isDarkMode && styles.darkText]}>Select Field</Text>
           <View style={styles.pickerContainer}>
             {fields.map((field) => (
               <TouchableOpacity
                 key={field.id}
                 style={[
                   styles.pickerOption,
-                  pestForm.field_id === field.id.toString() && styles.pickerOptionSelected
+                  pestForm.field_id === field.id.toString() && styles.pickerOptionSelected,
+                  isDarkMode && styles.darkPickerOption
                 ]}
                 onPress={() => setPestForm({...pestForm, field_id: field.id.toString()})}
                 disabled={submitting}
               >
                 <Text style={[
                   styles.pickerOptionText,
-                  pestForm.field_id === field.id.toString() && styles.pickerOptionTextSelected
+                  pestForm.field_id === field.id.toString() && styles.pickerOptionTextSelected,
+                  isDarkMode && styles.darkText
                 ]}>
                   {field.name}
                 </Text>
@@ -1044,33 +1047,35 @@ export default function FarmerDashboard() {
         </View>
         
         <View style={styles.formGroup}>
-          <Text style={styles.formLabel}>Pest Type</Text>
+          <Text style={[styles.formLabel, isDarkMode && styles.darkText]}>Pest Type</Text>
           <TextInput
-            style={styles.formInput}
+            style={[styles.formInput, isDarkMode && styles.darkFormInput]}
             value={pestForm.pest_type}
             onChangeText={(text) => setPestForm({...pestForm, pest_type: text})}
             placeholder="e.g., Aphids, Armyworms"
-            placeholderTextColor="#999"
+            placeholderTextColor={isDarkMode ? "#AAA" : "#999"}
             editable={!submitting}
           />
         </View>
         
         <View style={styles.formGroup}>
-          <Text style={styles.formLabel}>Severity</Text>
+          <Text style={[styles.formLabel, isDarkMode && styles.darkText]}>Severity</Text>
           <View style={styles.pickerContainer}>
             {["Low", "Medium", "High"].map((severity) => (
               <TouchableOpacity
                 key={severity}
                 style={[
                   styles.pickerOption,
-                  pestForm.severity === severity && styles.pickerOptionSelected
+                  pestForm.severity === severity && styles.pickerOptionSelected,
+                  isDarkMode && styles.darkPickerOption
                 ]}
                 onPress={() => setPestForm({...pestForm, severity})}
                 disabled={submitting}
               >
                 <Text style={[
                   styles.pickerOptionText,
-                  pestForm.severity === severity && styles.pickerOptionTextSelected
+                  pestForm.severity === severity && styles.pickerOptionTextSelected,
+                  isDarkMode && styles.darkText
                 ]}>
                   {severity}
                 </Text>
@@ -1080,13 +1085,13 @@ export default function FarmerDashboard() {
         </View>
         
         <View style={styles.formGroup}>
-          <Text style={styles.formLabel}>Description</Text>
+          <Text style={[styles.formLabel, isDarkMode && styles.darkText]}>Description</Text>
           <TextInput
-            style={[styles.formInput, styles.textArea]}
+            style={[styles.formInput, styles.textArea, isDarkMode && styles.darkFormInput]}
             value={pestForm.description}
             onChangeText={(text) => setPestForm({...pestForm, description: text})}
             placeholder="Describe the pest issue in detail..."
-            placeholderTextColor="#999"
+            placeholderTextColor={isDarkMode ? "#AAA" : "#999"}
             multiline
             numberOfLines={4}
             textAlignVertical="top"
@@ -1096,11 +1101,11 @@ export default function FarmerDashboard() {
         
         <View style={styles.formButtonContainer}>
           <TouchableOpacity 
-            style={styles.formCancelButton} 
+            style={[styles.formCancelButton, isDarkMode && styles.darkFormCancelButton]} 
             onPress={() => setShowPestForm(false)}
             disabled={submitting}
           >
-            <Text style={styles.formCancelButtonText}>Cancel</Text>
+            <Text style={[styles.formCancelButtonText, isDarkMode && styles.darkText]}>Cancel</Text>
           </TouchableOpacity>
           <TouchableOpacity 
             style={[styles.formSubmitButton, submitting && styles.formSubmitButtonDisabled]} 
@@ -1122,10 +1127,13 @@ export default function FarmerDashboard() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8F5F0",
+    backgroundColor: "#d8f0d5", // Nude/beige background
+  },
+  darkContainer: {
+    backgroundColor: "#121212",
   },
   header: {
-    backgroundColor: "#2E7D32",
+    backgroundColor: "#2E7D32", // Green header
     paddingTop: 50,
     paddingBottom: 20,
     paddingHorizontal: 20,
@@ -1139,6 +1147,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 5,
     elevation: 5,
+  },
+  darkHeader: {
+    backgroundColor: "#1B5E20",
   },
   greeting: {
     fontSize: 14,
@@ -1192,6 +1203,9 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 3,
   },
+  darkTabContainer: {
+    backgroundColor: "#1E1E1E",
+  },
   tab: {
     flex: 1,
     paddingVertical: 10,
@@ -1211,13 +1225,13 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#F8F5F0",
+    backgroundColor: "#F5F5DC",
   },
   loadingText: {
     marginTop: 10,
@@ -1228,7 +1242,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginTop: 20,
-    marginBottom: 15,
+    marginBottom: 12,
   },
   sectionTitle: {
     fontSize: 18,
@@ -1249,31 +1263,48 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "bold",
   },
+  // Grid layout for cards
   miniCardsGrid: {
+    marginBottom: 10,
+  },
+  quickActionsGrid: {
+    marginBottom: 10,
+  },
+  row: {
     flexDirection: "row",
-    flexWrap: "wrap",
     justifyContent: "space-between",
-    gap: 10,
+    marginBottom: 12,
+    gap: 12,
+  },
+  cardContainer: {
+    flex: 1,
   },
   miniCard: {
-    width: (width - 60) / 2,
     backgroundColor: "#FFF",
-    borderRadius: 15,
-    padding: 15,
+    borderRadius: 16,
+    padding: 16,
     alignItems: "center",
-    shadowColor: "#8B5A2B",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 3,
+    shadowRadius: 4,
     elevation: 3,
-    marginBottom: 10,
     borderWidth: 1,
     borderColor: "#E8E0D5",
+    width: "100%",
+  },
+  darkMiniCard: {
+    backgroundColor: "#1E1E1E",
+    borderColor: "#333",
+  },
+  miniCardPressed: {
+    transform: [{ scale: 0.98 }],
+    opacity: 0.9,
   },
   miniCardIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 10,
@@ -1282,53 +1313,48 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "bold",
     color: "#2E7D32",
+    marginBottom: 4,
   },
   miniCardTitle: {
     fontSize: 14,
     color: "#8B5A2B",
-    marginTop: 5,
-  },
-  quickActionsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    gap: 10,
+    textAlign: "center",
   },
   quickActionButton: {
-    width: (width - 60) / 2,
-    borderRadius: 12,
-    padding: 15,
+    borderRadius: 16,
+    padding: 16,
     alignItems: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 3,
+    shadowRadius: 4,
     elevation: 3,
-    marginBottom: 10,
+    width: "100%",
+  },
+  quickActionPressed: {
+    transform: [{ scale: 0.98 }],
+    opacity: 0.9,
   },
   quickActionContent: {
-    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 5,
-  },
-  plusIcon: {
-    marginRight: 4,
+    marginBottom: 6,
   },
   quickActionLabel: {
-    fontSize: 14,
+    fontSize: 13,
     color: "#FFF",
     fontWeight: "600",
-    marginTop: 2,
+    textAlign: "center",
   },
   recentSection: {
-    marginTop: 20,
+    marginTop: 10,
+    marginBottom: 10,
   },
   recentHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 10,
+    marginBottom: 12,
   },
   viewAllLink: {
     fontSize: 14,
@@ -1342,7 +1368,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     marginBottom: 8,
-    shadowColor: "#8B5A2B",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
@@ -1350,10 +1376,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E8E0D5",
   },
+  darkRecentItem: {
+    backgroundColor: "#1E1E1E",
+    borderColor: "#333",
+  },
+  recentItemPressed: {
+    transform: [{ scale: 0.99 }],
+    opacity: 0.9,
+  },
   recentIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
@@ -1365,18 +1399,69 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
     color: "#2E7D32",
+    marginBottom: 2,
   },
   recentSubtitle: {
     fontSize: 12,
     color: "#8B5A2B",
-    marginTop: 2,
   },
   recentStatus: {
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
+    marginLeft: 8,
   },
   recentStatusText: {
+    fontSize: 11,
+    fontWeight: "500",
+  },
+  alertCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFF",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#E8E0D5",
+  },
+  darkAlertCard: {
+    backgroundColor: "#1E1E1E",
+    borderColor: "#333",
+  },
+  alertIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  alertContent: {
+    flex: 1,
+  },
+  alertTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 2,
+  },
+  alertMessage: {
+    fontSize: 13,
+    color: "#666",
+    marginBottom: 2,
+  },
+  alertDate: {
+    fontSize: 11,
+    color: "#999",
+  },
+  alertSeverity: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginLeft: 8,
+  },
+  alertSeverityText: {
     fontSize: 11,
     fontWeight: "500",
   },
@@ -1396,6 +1481,9 @@ const styles = StyleSheet.create({
     minHeight: "50%",
     maxHeight: "80%",
   },
+  darkModalContent: {
+    backgroundColor: "#1E1E1E",
+  },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1403,6 +1491,9 @@ const styles = StyleSheet.create({
     padding: 20,
     borderBottomWidth: 1,
     borderBottomColor: "#E8E0D5",
+  },
+  darkModalHeader: {
+    borderBottomColor: "#333",
   },
   modalTitle: {
     fontSize: 20,
@@ -1432,6 +1523,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E8E0D5",
     position: "relative",
+  },
+  darkNotificationItem: {
+    backgroundColor: "#1E1E1E",
+    borderColor: "#333",
+  },
+  notificationItemPressed: {
+    transform: [{ scale: 0.99 }],
+    opacity: 0.9,
   },
   unreadNotification: {
     backgroundColor: "#F0F7F0",
@@ -1500,6 +1599,9 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 5,
   },
+  darkFormModalContent: {
+    backgroundColor: "#1E1E1E",
+  },
   formModalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1507,6 +1609,9 @@ const styles = StyleSheet.create({
     padding: 20,
     borderBottomWidth: 1,
     borderBottomColor: "#E8E0D5",
+  },
+  darkFormModalHeader: {
+    borderBottomColor: "#333",
   },
   formModalTitle: {
     fontSize: 18,
@@ -1534,6 +1639,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E0E0E0",
   },
+  darkFormInput: {
+    backgroundColor: "#2A2A2A",
+    color: "#FFF",
+    borderColor: "#444",
+  },
   textArea: {
     minHeight: 100,
     textAlignVertical: "top",
@@ -1541,7 +1651,7 @@ const styles = StyleSheet.create({
   formButtonContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
-    gap: 10,
+    gap: 12,
     marginTop: 10,
   },
   formCancelButton: {
@@ -1552,6 +1662,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 1,
     borderColor: "#E0E0E0",
+  },
+  darkFormCancelButton: {
+    backgroundColor: "#2A2A2A",
+    borderColor: "#444",
   },
   formCancelButtonText: {
     fontSize: 15,
@@ -1588,6 +1702,9 @@ const styles = StyleSheet.create({
     borderColor: "#2E7D32",
     backgroundColor: "#FFF",
   },
+  darkPickerOption: {
+    backgroundColor: "#2A2A2A",
+  },
   pickerOptionSelected: {
     backgroundColor: "#2E7D32",
   },
@@ -1597,5 +1714,11 @@ const styles = StyleSheet.create({
   },
   pickerOptionTextSelected: {
     color: "#FFF",
+  },
+  darkText: {
+    color: "#FFF",
+  },
+  darkSubText: {
+    color: "#AAA",
   },
 });

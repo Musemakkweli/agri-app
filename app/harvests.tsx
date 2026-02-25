@@ -4,18 +4,19 @@ import axios from "axios";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Modal,
-    RefreshControl,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
+import { useTheme } from '../context/ThemeContext';
 import BASE_URL from "../services/api"; // ✅ Correct import path
 
 interface Harvest {
@@ -33,56 +34,56 @@ interface Field {
 }
 
 // Harvest Card Component
-const HarvestCard = ({ harvest, onView, onEdit, onDelete, onDownload }: any) => (
-  <View style={styles.card}>
+const HarvestCard = ({ harvest, onView, onEdit, onDelete, onDownload, isDarkMode }: any) => (
+  <View style={[styles.card, isDarkMode && styles.darkCard]}>
     <View style={styles.cardHeader}>
       <View style={styles.cardTitleContainer}>
         <MaterialCommunityIcons name="calendar-check" size={24} color="#8B5A2B" />
-        <Text style={styles.cardTitle}>
+        <Text style={[styles.cardTitle, isDarkMode && styles.darkText]}>
           {harvest.crop_type || 'Unknown'} - Field {harvest.field_id}
         </Text>
       </View>
       <TouchableOpacity style={styles.menuButton}>
-        <MaterialCommunityIcons name="dots-vertical" size={24} color="#666" />
+        <MaterialCommunityIcons name="dots-vertical" size={24} color={isDarkMode ? "#AAA" : "#666"} />
       </TouchableOpacity>
     </View>
 
     <View style={styles.cardContent}>
       <View style={styles.infoRow}>
         <MaterialCommunityIcons name="calendar" size={16} color="#8B5A2B" />
-        <Text style={styles.infoText}>
+        <Text style={[styles.infoText, isDarkMode && styles.darkSubText]}>
           Date: {new Date(harvest.harvest_date).toLocaleDateString()}
         </Text>
       </View>
       <View style={styles.infoRow}>
         <MaterialCommunityIcons name="information" size={16} color="#8B5A2B" />
-        <Text style={styles.infoText}>Status: {harvest.status}</Text>
+        <Text style={[styles.infoText, isDarkMode && styles.darkSubText]}>Status: {harvest.status}</Text>
       </View>
     </View>
 
-    <View style={styles.cardActions}>
+    <View style={[styles.cardActions, isDarkMode && styles.darkBorder]}>
       <TouchableOpacity style={styles.actionButton} onPress={onView}>
-        <MaterialCommunityIcons name="eye" size={20} color="#2196F3" />
-        <Text style={styles.actionText}>View</Text>
+        <MaterialCommunityIcons name="eye" size={20} color="#a8c8e2" />
+        <Text style={[styles.actionText, isDarkMode && styles.darkSubText]}>View</Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.actionButton} onPress={onEdit}>
-        <MaterialCommunityIcons name="pencil" size={20} color="#4CAF50" />
-        <Text style={styles.actionText}>Edit</Text>
+        <MaterialCommunityIcons name="pencil" size={20} color="#90d692" />
+        <Text style={[styles.actionText, isDarkMode && styles.darkSubText]}>Edit</Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.actionButton} onPress={onDelete}>
-        <MaterialCommunityIcons name="delete" size={20} color="#F44336" />
-        <Text style={styles.actionText}>Delete</Text>
+        <MaterialCommunityIcons name="delete" size={20} color="#f4c4c0" />
+        <Text style={[styles.actionText, isDarkMode && styles.darkSubText]}>Delete</Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.actionButton} onPress={onDownload}>
-        <MaterialCommunityIcons name="download" size={20} color="#FF9800" />
-        <Text style={styles.actionText}>CSV</Text>
+        <MaterialCommunityIcons name="download" size={20} color="#d7b581" />
+        <Text style={[styles.actionText, isDarkMode && styles.darkSubText]}>CSV</Text>
       </TouchableOpacity>
     </View>
   </View>
 );
 
 // Modal Component
-const CustomModal = ({ visible, title, children, onClose, onConfirm }: any) => (
+const CustomModal = ({ visible, title, children, onClose, onConfirm, isDarkMode }: any) => (
   <Modal
     visible={visible}
     transparent={true}
@@ -90,19 +91,19 @@ const CustomModal = ({ visible, title, children, onClose, onConfirm }: any) => (
     onRequestClose={onClose}
   >
     <View style={styles.modalOverlay}>
-      <View style={styles.modalContent}>
-        <View style={styles.modalHeader}>
-          <Text style={styles.modalTitle}>{title}</Text>
+      <View style={[styles.modalContent, isDarkMode && styles.darkModalContent]}>
+        <View style={[styles.modalHeader, isDarkMode && styles.darkBorder]}>
+          <Text style={[styles.modalTitle, isDarkMode && styles.darkText]}>{title}</Text>
           <TouchableOpacity onPress={onClose}>
-            <MaterialCommunityIcons name="close" size={24} color="#8B5A2B" />
+            <MaterialCommunityIcons name="close" size={24} color={isDarkMode ? "#FFF" : "#8B5A2B"} />
           </TouchableOpacity>
         </View>
         <View style={styles.modalBody}>
           {children}
           {onConfirm && (
             <View style={styles.modalFooter}>
-              <TouchableOpacity style={styles.modalCancelButton} onPress={onClose}>
-                <Text style={styles.modalCancelText}>Cancel</Text>
+              <TouchableOpacity style={[styles.modalCancelButton, isDarkMode && styles.darkCancelButton]} onPress={onClose}>
+                <Text style={[styles.modalCancelText, isDarkMode && styles.darkSubText]}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.modalConfirmButton} onPress={onConfirm}>
                 <Text style={styles.modalConfirmText}>Confirm</Text>
@@ -126,6 +127,7 @@ export default function HarvestsScreen() {
   const [deleteHarvestId, setDeleteHarvestId] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [menuOpen, setMenuOpen] = useState<number | null>(null);
+  const { isDarkMode } = useTheme();
 
   const [formData, setFormData] = useState({
     field_id: "",
@@ -337,11 +339,11 @@ export default function HarvestsScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, isDarkMode && styles.darkContainer]}>
       <StatusBar barStyle="light-content" backgroundColor="#2E7D32" />
       
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, isDarkMode && styles.darkHeader]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <MaterialCommunityIcons name="arrow-left" size={24} color="#FFF" />
         </TouchableOpacity>
@@ -366,22 +368,22 @@ export default function HarvestsScreen() {
         onRequestClose={() => setShowForm(false)}
       >
         <View style={styles.formModalOverlay}>
-          <View style={styles.formModalContent}>
-            <View style={styles.formModalHeader}>
-              <Text style={styles.formModalTitle}>
+          <View style={[styles.formModalContent, isDarkMode && styles.darkFormModalContent]}>
+            <View style={[styles.formModalHeader, isDarkMode && styles.darkBorder]}>
+              <Text style={[styles.formModalTitle, isDarkMode && styles.darkText]}>
                 {editingHarvest ? "Edit Harvest" : "Schedule Harvest"}
               </Text>
               <TouchableOpacity onPress={() => setShowForm(false)} disabled={submitting}>
-                <MaterialCommunityIcons name="close" size={24} color="#8B5A2B" />
+                <MaterialCommunityIcons name="close" size={24} color={isDarkMode ? "#FFF" : "#8B5A2B"} />
               </TouchableOpacity>
             </View>
 
             <ScrollView style={styles.formModalBody}>
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Select Field *</Text>
+                <Text style={[styles.formLabel, isDarkMode && styles.darkText]}>Select Field *</Text>
                 {fields.length === 0 ? (
-                  <View style={styles.noFieldsContainer}>
-                    <Text style={styles.noFieldsText}>No fields available. Please add a field first.</Text>
+                  <View style={[styles.noFieldsContainer, isDarkMode && styles.darkNoFieldsContainer]}>
+                    <Text style={[styles.noFieldsText, isDarkMode && styles.darkSubText]}>No fields available. Please add a field first.</Text>
                     <TouchableOpacity
                       style={styles.goToFieldsButton}
                       onPress={() => {
@@ -399,14 +401,16 @@ export default function HarvestsScreen() {
                         key={field.id}
                         style={[
                           styles.pickerOption,
-                          formData.field_id === field.id.toString() && styles.pickerOptionSelected
+                          formData.field_id === field.id.toString() && styles.pickerOptionSelected,
+                          isDarkMode && styles.darkPickerOption
                         ]}
                         onPress={() => setFormData({ ...formData, field_id: field.id.toString() })}
                         disabled={submitting}
                       >
                         <Text style={[
                           styles.pickerOptionText,
-                          formData.field_id === field.id.toString() && styles.pickerOptionTextSelected
+                          formData.field_id === field.id.toString() && styles.pickerOptionTextSelected,
+                          isDarkMode && styles.darkText
                         ]}>
                           {field.name}
                         </Text>
@@ -417,45 +421,47 @@ export default function HarvestsScreen() {
               </View>
 
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Crop Type</Text>
+                <Text style={[styles.formLabel, isDarkMode && styles.darkText]}>Crop Type</Text>
                 <TextInput
-                  style={styles.formInput}
+                  style={[styles.formInput, isDarkMode && styles.darkInput]}
                   value={formData.crop_type}
                   onChangeText={(text) => setFormData({ ...formData, crop_type: text })}
                   placeholder="e.g., Maize"
-                  placeholderTextColor="#999"
+                  placeholderTextColor={isDarkMode ? "#666" : "#999"}
                   editable={!submitting}
                 />
               </View>
 
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Harvest Date *</Text>
+                <Text style={[styles.formLabel, isDarkMode && styles.darkText]}>Harvest Date *</Text>
                 <TextInput
-                  style={styles.formInput}
+                  style={[styles.formInput, isDarkMode && styles.darkInput]}
                   value={formData.harvest_date}
                   onChangeText={(text) => setFormData({ ...formData, harvest_date: text })}
                   placeholder="YYYY-MM-DD"
-                  placeholderTextColor="#999"
+                  placeholderTextColor={isDarkMode ? "#666" : "#999"}
                   editable={!submitting}
                 />
               </View>
 
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Status</Text>
+                <Text style={[styles.formLabel, isDarkMode && styles.darkText]}>Status</Text>
                 <View style={styles.pickerContainer}>
                   {["upcoming", "completed"].map((status) => (
                     <TouchableOpacity
                       key={status}
                       style={[
                         styles.pickerOption,
-                        formData.status === status && styles.pickerOptionSelected
+                        formData.status === status && styles.pickerOptionSelected,
+                        isDarkMode && styles.darkPickerOption
                       ]}
                       onPress={() => setFormData({ ...formData, status })}
                       disabled={submitting}
                     >
                       <Text style={[
                         styles.pickerOptionText,
-                        formData.status === status && styles.pickerOptionTextSelected
+                        formData.status === status && styles.pickerOptionTextSelected,
+                        isDarkMode && styles.darkText
                       ]}>
                         {status.charAt(0).toUpperCase() + status.slice(1)}
                       </Text>
@@ -466,11 +472,11 @@ export default function HarvestsScreen() {
 
               <View style={styles.formButtonContainer}>
                 <TouchableOpacity
-                  style={styles.formCancelButton}
+                  style={[styles.formCancelButton, isDarkMode && styles.darkCancelButton]}
                   onPress={() => setShowForm(false)}
                   disabled={submitting}
                 >
-                  <Text style={styles.formCancelButtonText}>Cancel</Text>
+                  <Text style={[styles.formCancelButtonText, isDarkMode && styles.darkSubText]}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.formSubmitButton, submitting && styles.formSubmitButtonDisabled]}
@@ -496,13 +502,22 @@ export default function HarvestsScreen() {
         visible={!!viewHarvest}
         title="Harvest Details"
         onClose={() => setViewHarvest(null)}
+        isDarkMode={isDarkMode}
       >
         {viewHarvest && (
           <View>
-            <Text style={styles.detailText}><Text style={styles.detailLabel}>Field ID:</Text> {viewHarvest.field_id}</Text>
-            <Text style={styles.detailText}><Text style={styles.detailLabel}>Crop:</Text> {viewHarvest.crop_type || 'N/A'}</Text>
-            <Text style={styles.detailText}><Text style={styles.detailLabel}>Date:</Text> {new Date(viewHarvest.harvest_date).toLocaleDateString()}</Text>
-            <Text style={styles.detailText}><Text style={styles.detailLabel}>Status:</Text> {viewHarvest.status}</Text>
+            <Text style={[styles.detailText, isDarkMode && styles.darkText]}>
+              <Text style={[styles.detailLabel, isDarkMode && styles.darkText]}>Field ID:</Text> {viewHarvest.field_id}
+            </Text>
+            <Text style={[styles.detailText, isDarkMode && styles.darkText]}>
+              <Text style={[styles.detailLabel, isDarkMode && styles.darkText]}>Crop:</Text> {viewHarvest.crop_type || 'N/A'}
+            </Text>
+            <Text style={[styles.detailText, isDarkMode && styles.darkText]}>
+              <Text style={[styles.detailLabel, isDarkMode && styles.darkText]}>Date:</Text> {new Date(viewHarvest.harvest_date).toLocaleDateString()}
+            </Text>
+            <Text style={[styles.detailText, isDarkMode && styles.darkText]}>
+              <Text style={[styles.detailLabel, isDarkMode && styles.darkText]}>Status:</Text> {viewHarvest.status}
+            </Text>
           </View>
         )}
       </CustomModal>
@@ -513,23 +528,24 @@ export default function HarvestsScreen() {
         title="Confirm Delete"
         onClose={() => setDeleteHarvestId(null)}
         onConfirm={handleDelete}
+        isDarkMode={isDarkMode}
       >
-        <Text style={styles.confirmText}>Are you sure you want to delete this harvest?</Text>
+        <Text style={[styles.confirmText, isDarkMode && styles.darkText]}>Are you sure you want to delete this harvest?</Text>
       </CustomModal>
 
       {/* Content */}
       {loading ? (
-        <View style={styles.loadingContainer}>
+        <View style={[styles.loadingContainer, isDarkMode && styles.darkContainer]}>
           <ActivityIndicator size="large" color="#2E7D32" />
-          <Text style={styles.loadingText}>Loading harvests...</Text>
+          <Text style={[styles.loadingText, isDarkMode && styles.darkText]}>Loading harvests...</Text>
         </View>
       ) : harvests.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <MaterialCommunityIcons name="calendar-check" size={60} color="#CCC" />
-          <Text style={styles.emptyText}>No harvests scheduled yet</Text>
+        <View style={[styles.emptyContainer, isDarkMode && styles.darkContainer]}>
+          <MaterialCommunityIcons name="calendar-check" size={60} color={isDarkMode ? "#555" : "#CCC"} />
+          <Text style={[styles.emptyText, isDarkMode && styles.darkSubText]}>No harvests scheduled yet</Text>
           {fields.length === 0 ? (
             <>
-              <Text style={styles.emptySubText}>You need to add a field first</Text>
+              <Text style={[styles.emptySubText, isDarkMode && styles.darkSubText]}>You need to add a field first</Text>
               <TouchableOpacity
                 style={styles.emptyButton}
                 onPress={() => router.push("/fields")}
@@ -566,6 +582,7 @@ export default function HarvestsScreen() {
               onEdit={() => handleEdit(harvest)}
               onDelete={() => setDeleteHarvestId(harvest.id)}
               onDownload={() => handleDownload(harvest)}
+              isDarkMode={isDarkMode}
             />
           ))}
         </ScrollView>
@@ -579,6 +596,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#F8F5F0",
   },
+  darkContainer: {
+    backgroundColor: "#121212",
+  },
   header: {
     backgroundColor: "#2E7D32",
     flexDirection: "row",
@@ -586,6 +606,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 12,
+  },
+  darkHeader: {
+    backgroundColor: "#1B5E20",
   },
   backButton: {
     padding: 8,
@@ -645,7 +668,7 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   card: {
-    backgroundColor: "#FFF",
+    backgroundColor: "#cdefbe",
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
@@ -654,6 +677,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+  },
+  darkCard: {
+    backgroundColor: "#1E1E1E",
   },
   cardHeader: {
     flexDirection: "row",
@@ -696,6 +722,9 @@ const styles = StyleSheet.create({
     borderTopColor: "#E8E0D5",
     paddingTop: 12,
   },
+  darkBorder: {
+    borderTopColor: "#333",
+  },
   actionButton: {
     alignItems: "center",
     gap: 4,
@@ -721,6 +750,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 5,
+  },
+  darkModalContent: {
+    backgroundColor: "#1E1E1E",
   },
   modalHeader: {
     flexDirection: "row",
@@ -749,6 +781,9 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 8,
     backgroundColor: "#F5F5F5",
+  },
+  darkCancelButton: {
+    backgroundColor: "#2A2A2A",
   },
   modalCancelText: {
     color: "#666",
@@ -791,6 +826,9 @@ const styles = StyleSheet.create({
     width: "90%",
     maxHeight: "80%",
   },
+  darkFormModalContent: {
+    backgroundColor: "#1E1E1E",
+  },
   formModalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -824,6 +862,11 @@ const styles = StyleSheet.create({
     color: "#333",
     borderWidth: 1,
     borderColor: "#E0E0E0",
+  },
+  darkInput: {
+    backgroundColor: "#2A2A2A",
+    color: "#FFF",
+    borderColor: "#444",
   },
   formButtonContainer: {
     flexDirection: "row",
@@ -874,6 +917,9 @@ const styles = StyleSheet.create({
     borderColor: "#8B5A2B",
     backgroundColor: "#FFF",
   },
+  darkPickerOption: {
+    backgroundColor: "#2A2A2A",
+  },
   pickerOptionSelected: {
     backgroundColor: "#8B5A2B",
   },
@@ -889,6 +935,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFF3E0",
     borderRadius: 8,
     alignItems: "center",
+  },
+  darkNoFieldsContainer: {
+    backgroundColor: "#2A1A0A",
   },
   noFieldsText: {
     fontSize: 14,
@@ -906,5 +955,12 @@ const styles = StyleSheet.create({
     color: "#FFF",
     fontSize: 14,
     fontWeight: "500",
+  },
+  // Dark mode text styles
+  darkText: {
+    color: "#FFF",
+  },
+  darkSubText: {
+    color: "#AAA",
   },
 });

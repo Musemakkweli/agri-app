@@ -20,6 +20,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useTheme } from '../../context/ThemeContext';
 import BASE_URL from "../../services/api";
 
 // Define types
@@ -76,7 +77,8 @@ const ComplaintForm = memo(({
   initialDescription,
   initialLocation,
   initialImage,
-  submitting 
+  submitting,
+  isDarkMode
 }: {
   visible: boolean;
   onClose: () => void;
@@ -88,6 +90,7 @@ const ComplaintForm = memo(({
   initialLocation: string;
   initialImage: string | null;
   submitting: boolean;
+  isDarkMode: boolean;
 }) => {
   const [title, setTitle] = useState(initialTitle);
   const [type, setType] = useState(initialType);
@@ -166,8 +169,8 @@ const ComplaintForm = memo(({
 
   return (
     <Modal visible={visible} animationType="slide">
-      <SafeAreaView style={styles.formContainer}>
-        <View style={styles.formHeader}>
+      <SafeAreaView style={[styles.formContainer, isDarkMode && styles.darkFormContainer]}>
+        <View style={[styles.formHeader, isDarkMode && styles.darkHeader]}>
           <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
             <MaterialCommunityIcons name="close" size={24} color="#FFF" />
           </TouchableOpacity>
@@ -179,21 +182,21 @@ const ComplaintForm = memo(({
 
         <ScrollView style={styles.formContent}>
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>
+            <Text style={[styles.inputLabel, isDarkMode && styles.darkText]}>
               <MaterialCommunityIcons name="tag" size={16} color="#2E7D32" />
               {"  "}Complaint Title *
             </Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, isDarkMode && styles.darkInput]}
               value={title}
               onChangeText={setTitle}
               placeholder="e.g., Maize leaves turning yellow"
-              placeholderTextColor="#999"
+              placeholderTextColor={isDarkMode ? "#666" : "#999"}
             />
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Type of Issue *</Text>
+            <Text style={[styles.inputLabel, isDarkMode && styles.darkText]}>Type of Issue *</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.typeScroll}>
               {complaintTypes.map((item) => (
                 <TouchableOpacity
@@ -201,6 +204,7 @@ const ComplaintForm = memo(({
                   style={[
                     styles.typeChip,
                     type === item.value && styles.typeChipActive,
+                    isDarkMode && styles.darkTypeChip,
                   ]}
                   onPress={() => setType(item.value)}
                 >
@@ -213,6 +217,7 @@ const ComplaintForm = memo(({
                     style={[
                       styles.typeChipText,
                       type === item.value && styles.typeChipTextActive,
+                      isDarkMode && styles.darkText,
                     ]}
                   >
                     {item.label}
@@ -223,27 +228,27 @@ const ComplaintForm = memo(({
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>
+            <Text style={[styles.inputLabel, isDarkMode && styles.darkText]}>
               <MaterialCommunityIcons name="map-marker" size={16} color="#2E7D32" />
               {"  "}Location *
             </Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, isDarkMode && styles.darkInput]}
               value={location}
               onChangeText={setLocation}
               placeholder="e.g., Field A, North Section"
-              placeholderTextColor="#999"
+              placeholderTextColor={isDarkMode ? "#666" : "#999"}
             />
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Description *</Text>
+            <Text style={[styles.inputLabel, isDarkMode && styles.darkText]}>Description *</Text>
             <TextInput
-              style={[styles.input, styles.textArea]}
+              style={[styles.input, styles.textArea, isDarkMode && styles.darkInput]}
               value={description}
               onChangeText={setDescription}
               placeholder="Describe the issue in detail..."
-              placeholderTextColor="#999"
+              placeholderTextColor={isDarkMode ? "#666" : "#999"}
               multiline
               numberOfLines={4}
               textAlignVertical="top"
@@ -251,7 +256,7 @@ const ComplaintForm = memo(({
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Upload Image (Optional)</Text>
+            <Text style={[styles.inputLabel, isDarkMode && styles.darkText]}>Upload Image (Optional)</Text>
             {selectedImage ? (
               <View style={styles.imagePreviewContainer}>
                 <Image source={{ uri: selectedImage }} style={styles.imagePreview} />
@@ -265,14 +270,20 @@ const ComplaintForm = memo(({
             ) : null}
 
             <View style={styles.imageButtons}>
-              <TouchableOpacity style={styles.imageButton} onPress={pickImage}>
+              <TouchableOpacity 
+                style={[styles.imageButton, isDarkMode && styles.darkImageButton]} 
+                onPress={pickImage}
+              >
                 <MaterialCommunityIcons name="image" size={20} color="#2E7D32" />
-                <Text style={styles.imageButtonText}>Gallery</Text>
+                <Text style={[styles.imageButtonText, isDarkMode && styles.darkText]}>Gallery</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.imageButton} onPress={takePhoto}>
+              <TouchableOpacity 
+                style={[styles.imageButton, isDarkMode && styles.darkImageButton]} 
+                onPress={takePhoto}
+              >
                 <MaterialCommunityIcons name="camera" size={20} color="#2E7D32" />
-                <Text style={styles.imageButtonText}>Camera</Text>
+                <Text style={[styles.imageButtonText, isDarkMode && styles.darkText]}>Camera</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -318,6 +329,8 @@ export default function ComplaintDashboard() {
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [showFilterModal, setShowFilterModal] = useState<boolean>(false);
   const [showActionModal, setShowActionModal] = useState<number | null>(null);
+  
+  const { isDarkMode } = useTheme();
   
   const getUserId = async () => {
     try {
@@ -580,10 +593,10 @@ export default function ComplaintDashboard() {
     const statusStyle = getStatusColor(item.status);
     
     return (
-      <View style={styles.card}>
+      <View style={[styles.card, isDarkMode && styles.darkCard]}>
         <View style={styles.cardHeader}>
           <View style={styles.cardTitleContainer}>
-            <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
+            <Text style={[styles.cardTitle, isDarkMode && styles.darkText]} numberOfLines={1}>{item.title}</Text>
             <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
               <View style={[styles.statusDot, { backgroundColor: statusStyle.dot }]} />
               <Text style={[styles.statusText, { color: statusStyle.text }]}>
@@ -592,13 +605,13 @@ export default function ComplaintDashboard() {
             </View>
           </View>
           
-          {/* Three dots menu button - FIXED: Always visible for all complaints, not just pending */}
+          {/* Three dots menu button */}
           <TouchableOpacity
             onPress={() => setShowActionModal(item.id)}
-            style={styles.menuButton}
+            style={[styles.menuButton, isDarkMode && styles.darkMenuButton]}
             activeOpacity={0.7}
           >
-            <MaterialCommunityIcons name="dots-vertical" size={24} color="#2E7D32" />
+            <MaterialCommunityIcons name="dots-vertical" size={24} color={isDarkMode ? "#FFF" : "#2E7D32"} />
           </TouchableOpacity>
         </View>
 
@@ -609,24 +622,24 @@ export default function ComplaintDashboard() {
           <View style={styles.cardContent}>
             <View style={styles.cardRow}>
               <MaterialCommunityIcons name={getTypeIcon(item.type)} size={16} color="#2E7D32" />
-              <Text style={styles.cardType}>{item.type}</Text>
+              <Text style={[styles.cardType, isDarkMode && styles.darkSubText]}>{item.type}</Text>
             </View>
             <View style={styles.cardRow}>
               <MaterialCommunityIcons name="map-marker" size={16} color="#2E7D32" />
-              <Text style={styles.cardLocation} numberOfLines={1}>{item.location}</Text>
+              <Text style={[styles.cardLocation, isDarkMode && styles.darkSubText]} numberOfLines={1}>{item.location}</Text>
             </View>
-            <Text style={styles.cardDescription} numberOfLines={2}>
+            <Text style={[styles.cardDescription, isDarkMode && styles.darkSubText]} numberOfLines={2}>
               {item.description}
             </Text>
           </View>
 
-          <View style={styles.cardFooter}>
-            <MaterialCommunityIcons name="clock-outline" size={14} color="#666" />
-            <Text style={styles.cardDate}>{formatDate(item.created_at)}</Text>
+          <View style={[styles.cardFooter, isDarkMode && styles.darkBorder]}>
+            <MaterialCommunityIcons name="clock-outline" size={14} color={isDarkMode ? "#AAA" : "#666"} />
+            <Text style={[styles.cardDate, isDarkMode && styles.darkSubText]}>{formatDate(item.created_at)}</Text>
             {item.image && (
               <>
-                <MaterialCommunityIcons name="image" size={14} color="#666" />
-                <Text style={styles.cardDate}>Photo</Text>
+                <MaterialCommunityIcons name="image" size={14} color={isDarkMode ? "#AAA" : "#666"} />
+                <Text style={[styles.cardDate, isDarkMode && styles.darkSubText]}>Photo</Text>
               </>
             )}
           </View>
@@ -644,7 +657,7 @@ export default function ComplaintDashboard() {
             activeOpacity={1}
             onPress={() => setShowActionModal(null)}
           >
-            <View style={styles.actionModal}>
+            <View style={[styles.actionModal, isDarkMode && styles.darkActionModal]}>
               <TouchableOpacity
                 style={styles.actionButton}
                 onPress={() => {
@@ -653,7 +666,7 @@ export default function ComplaintDashboard() {
                 }}
               >
                 <MaterialCommunityIcons name="eye" size={20} color="#2196F3" />
-                <Text style={styles.actionText}>View Details</Text>
+                <Text style={[styles.actionText, isDarkMode && styles.darkText]}>View Details</Text>
               </TouchableOpacity>
               
               <TouchableOpacity
@@ -664,18 +677,18 @@ export default function ComplaintDashboard() {
                 }}
               >
                 <MaterialCommunityIcons name="pencil" size={20} color="#4CAF50" />
-                <Text style={styles.actionText}>Edit</Text>
+                <Text style={[styles.actionText, isDarkMode && styles.darkText]}>Edit</Text>
               </TouchableOpacity>
               
               <TouchableOpacity
-                style={[styles.actionButton, styles.deleteButton]}
+                style={[styles.actionButton, styles.deleteButton, isDarkMode && styles.darkDeleteButton]}
                 onPress={() => {
                   handleDelete(item.id);
                   setShowActionModal(null);
                 }}
               >
                 <MaterialCommunityIcons name="delete" size={20} color="#D32F2F" />
-                <Text style={[styles.actionText, styles.deleteText]}>Delete</Text>
+                <Text style={[styles.actionText, styles.deleteText, isDarkMode && styles.darkText]}>Delete</Text>
               </TouchableOpacity>
             </View>
           </TouchableOpacity>
@@ -687,21 +700,22 @@ export default function ComplaintDashboard() {
   const FilterModal = () => (
     <Modal visible={showFilterModal} transparent animationType="slide">
       <View style={styles.modalOverlay}>
-        <View style={styles.filterModal}>
+        <View style={[styles.filterModal, isDarkMode && styles.darkFilterModal]}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Filter Complaints</Text>
+            <Text style={[styles.modalTitle, isDarkMode && styles.darkText]}>Filter Complaints</Text>
             <TouchableOpacity onPress={() => setShowFilterModal(false)}>
-              <MaterialCommunityIcons name="close" size={24} color="#2E7D32" />
+              <MaterialCommunityIcons name="close" size={24} color={isDarkMode ? "#FFF" : "#2E7D32"} />
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.filterLabel}>Status</Text>
+          <Text style={[styles.filterLabel, isDarkMode && styles.darkText]}>Status</Text>
           {["all", "pending", "in progress", "resolved", "rejected"].map((status) => (
             <TouchableOpacity
               key={status}
               style={[
                 styles.filterOption,
                 filterStatus === status && styles.filterOptionActive,
+                isDarkMode && styles.darkFilterOption,
               ]}
               onPress={() => {
                 setFilterStatus(status);
@@ -712,6 +726,7 @@ export default function ComplaintDashboard() {
                 style={[
                   styles.filterOptionText,
                   filterStatus === status && styles.filterOptionTextActive,
+                  isDarkMode && styles.darkText,
                 ]}
               >
                 {status.charAt(0).toUpperCase() + status.slice(1)}
@@ -733,11 +748,11 @@ export default function ComplaintDashboard() {
     return (
       <Modal visible={!!viewComplaint} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={styles.detailModal}>
+          <View style={[styles.detailModal, isDarkMode && styles.darkDetailModal]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Complaint Details</Text>
+              <Text style={[styles.modalTitle, isDarkMode && styles.darkText]}>Complaint Details</Text>
               <TouchableOpacity onPress={() => setViewComplaint(null)}>
-                <MaterialCommunityIcons name="close" size={24} color="#2E7D32" />
+                <MaterialCommunityIcons name="close" size={24} color={isDarkMode ? "#FFF" : "#2E7D32"} />
               </TouchableOpacity>
             </View>
 
@@ -750,43 +765,43 @@ export default function ComplaintDashboard() {
                       {viewComplaint.status}
                     </Text>
                   </View>
-                  <Text style={styles.detailId}>#{viewComplaint.id}</Text>
+                  <Text style={[styles.detailId, isDarkMode && styles.darkSubText]}>#{viewComplaint.id}</Text>
                 </View>
 
                 <View style={styles.detailSection}>
-                  <Text style={styles.detailLabel}>Title</Text>
-                  <Text style={styles.detailValue}>{viewComplaint.title}</Text>
+                  <Text style={[styles.detailLabel, isDarkMode && styles.darkText]}>Title</Text>
+                  <Text style={[styles.detailValue, isDarkMode && styles.darkText]}>{viewComplaint.title}</Text>
                 </View>
 
                 <View style={styles.detailRow}>
                   <View style={styles.detailHalf}>
-                    <Text style={styles.detailLabel}>Type</Text>
+                    <Text style={[styles.detailLabel, isDarkMode && styles.darkText]}>Type</Text>
                     <View style={styles.detailType}>
                       <MaterialCommunityIcons 
                         name={getTypeIcon(viewComplaint.type)} 
                         size={16} 
                         color="#2E7D32" 
                       />
-                      <Text style={styles.detailValue}>{viewComplaint.type}</Text>
+                      <Text style={[styles.detailValue, isDarkMode && styles.darkText]}>{viewComplaint.type}</Text>
                     </View>
                   </View>
                   <View style={styles.detailHalf}>
-                    <Text style={styles.detailLabel}>Location</Text>
+                    <Text style={[styles.detailLabel, isDarkMode && styles.darkText]}>Location</Text>
                     <View style={styles.detailLocation}>
                       <MaterialCommunityIcons name="map-marker" size={16} color="#2E7D32" />
-                      <Text style={styles.detailValue}>{viewComplaint.location}</Text>
+                      <Text style={[styles.detailValue, isDarkMode && styles.darkText]}>{viewComplaint.location}</Text>
                     </View>
                   </View>
                 </View>
 
                 <View style={styles.detailSection}>
-                  <Text style={styles.detailLabel}>Description</Text>
-                  <Text style={styles.detailDescription}>{viewComplaint.description}</Text>
+                  <Text style={[styles.detailLabel, isDarkMode && styles.darkText]}>Description</Text>
+                  <Text style={[styles.detailDescription, isDarkMode && styles.darkSubText]}>{viewComplaint.description}</Text>
                 </View>
 
                 {viewComplaint.image && (
                   <View style={styles.detailSection}>
-                    <Text style={styles.detailLabel}>Attached Image</Text>
+                    <Text style={[styles.detailLabel, isDarkMode && styles.darkText]}>Attached Image</Text>
                     <Image 
                       source={{ uri: viewComplaint.image }} 
                       style={styles.detailImage}
@@ -796,8 +811,8 @@ export default function ComplaintDashboard() {
                 )}
 
                 <View style={styles.detailSection}>
-                  <Text style={styles.detailLabel}>Reported On</Text>
-                  <Text style={styles.detailDate}>
+                  <Text style={[styles.detailLabel, isDarkMode && styles.darkText]}>Reported On</Text>
+                  <Text style={[styles.detailDate, isDarkMode && styles.darkSubText]}>
                     {new Date(viewComplaint.created_at).toLocaleString()}
                   </Text>
                 </View>
@@ -810,8 +825,8 @@ export default function ComplaintDashboard() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.container, isDarkMode && styles.darkContainer]}>
+      <View style={[styles.header, isDarkMode && styles.darkHeader]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <MaterialCommunityIcons name="arrow-left" size={24} color="#FFF" />
         </TouchableOpacity>
@@ -822,14 +837,14 @@ export default function ComplaintDashboard() {
       </View>
 
       <View style={styles.searchContainer}>
-        <View style={styles.searchBox}>
+        <View style={[styles.searchBox, isDarkMode && styles.darkSearchBox]}>
           <MaterialCommunityIcons name="magnify" size={20} color="#2E7D32" />
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, isDarkMode && styles.darkInput]}
             placeholder="Search complaints..."
             value={searchQuery}
             onChangeText={setSearchQuery}
-            placeholderTextColor="#999"
+            placeholderTextColor={isDarkMode ? "#AAA" : "#999"}
           />
           {searchQuery ? (
             <TouchableOpacity onPress={() => setSearchQuery("")}>
@@ -839,7 +854,11 @@ export default function ComplaintDashboard() {
         </View>
 
         <TouchableOpacity
-          style={[styles.filterButton, filterStatus !== "all" && styles.filterButtonActive]}
+          style={[
+            styles.filterButton, 
+            filterStatus !== "all" && styles.filterButtonActive,
+            isDarkMode && styles.darkFilterButton,
+          ]}
           onPress={() => setShowFilterModal(true)}
         >
           <MaterialCommunityIcons 
@@ -851,34 +870,34 @@ export default function ComplaintDashboard() {
       </View>
 
       <View style={styles.statsContainer}>
-        <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{complaints.length}</Text>
-          <Text style={styles.statLabel}>Total</Text>
+        <View style={[styles.statCard, isDarkMode && styles.darkStatCard]}>
+          <Text style={[styles.statNumber, isDarkMode && styles.darkText]}>{complaints.length}</Text>
+          <Text style={[styles.statLabel, isDarkMode && styles.darkSubText]}>Total</Text>
         </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statNumber}>
+        <View style={[styles.statCard, isDarkMode && styles.darkStatCard]}>
+          <Text style={[styles.statNumber, isDarkMode && styles.darkText]}>
             {complaints.filter(c => c.status.toLowerCase() === "pending").length}
           </Text>
-          <Text style={styles.statLabel}>Pending</Text>
+          <Text style={[styles.statLabel, isDarkMode && styles.darkSubText]}>Pending</Text>
         </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statNumber}>
+        <View style={[styles.statCard, isDarkMode && styles.darkStatCard]}>
+          <Text style={[styles.statNumber, isDarkMode && styles.darkText]}>
             {complaints.filter(c => c.status.toLowerCase() === "in progress").length}
           </Text>
-          <Text style={styles.statLabel}>In Progress</Text>
+          <Text style={[styles.statLabel, isDarkMode && styles.darkSubText]}>In Progress</Text>
         </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statNumber}>
+        <View style={[styles.statCard, isDarkMode && styles.darkStatCard]}>
+          <Text style={[styles.statNumber, isDarkMode && styles.darkText]}>
             {complaints.filter(c => c.status.toLowerCase() === "resolved").length}
           </Text>
-          <Text style={styles.statLabel}>Resolved</Text>
+          <Text style={[styles.statLabel, isDarkMode && styles.darkSubText]}>Resolved</Text>
         </View>
       </View>
 
       {loading && !refreshing ? (
-        <View style={styles.loadingContainer}>
+        <View style={[styles.loadingContainer, isDarkMode && styles.darkContainer]}>
           <ActivityIndicator size="large" color="#2E7D32" />
-          <Text style={styles.loadingText}>Loading complaints...</Text>
+          <Text style={[styles.loadingText, isDarkMode && styles.darkText]}>Loading complaints...</Text>
         </View>
       ) : (
         <FlatList
@@ -890,9 +909,9 @@ export default function ComplaintDashboard() {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#2E7D32"]} />
           }
           ListEmptyComponent={
-            <View style={styles.emptyContainer}>
+            <View style={[styles.emptyContainer, isDarkMode && styles.darkContainer]}>
               <MaterialCommunityIcons name="alert-circle-outline" size={60} color="#2E7D32" />
-              <Text style={styles.emptyText}>No complaints found</Text>
+              <Text style={[styles.emptyText, isDarkMode && styles.darkText]}>No complaints found</Text>
               <TouchableOpacity
                 style={styles.emptyButton}
                 onPress={handleAddNew}
@@ -917,6 +936,7 @@ export default function ComplaintDashboard() {
         initialLocation={editData.location}
         initialImage={editData.image}
         submitting={submitting}
+        isDarkMode={isDarkMode}
       />
     </SafeAreaView>
   );
@@ -925,7 +945,10 @@ export default function ComplaintDashboard() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#E8F5E9",
+    backgroundColor: "#F5F5DC", // Nude background
+  },
+  darkContainer: {
+    backgroundColor: "#121212",
   },
   header: {
     backgroundColor: "#2E7D32",
@@ -934,6 +957,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 12,
+  },
+  darkHeader: {
+    backgroundColor: "#1B5E20",
   },
   backButton: {
     padding: 8,
@@ -962,6 +988,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#C8E6C9",
   },
+  darkSearchBox: {
+    backgroundColor: "#1E1E1E",
+    borderColor: "#333",
+  },
   searchInput: {
     flex: 1,
     paddingVertical: 12,
@@ -969,15 +999,25 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#333",
   },
+  // In the main stylesheet, update the darkInput style:
+darkInput: {
+  backgroundColor: "#2A2A2A",
+  color: "#FFF",
+  borderColor: "#444",
+},
   filterButton: {
     width: 48,
     height: 48,
     borderRadius: 12,
-    backgroundColor: "#FFF",
+    backgroundColor: "#2A2A2A",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#C8E6C9",
+    borderColor: "#444",
+  },
+  darkFilterButton: {
+    backgroundColor: "#1E1E1E",
+    borderColor: "#333",
   },
   filterButtonActive: {
     backgroundColor: "#2E7D32",
@@ -1003,6 +1043,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#C8E6C9",
   },
+  darkStatCard: {
+    backgroundColor: "#1E1E1E",
+    borderColor: "#333",
+  },
   statNumber: {
     fontSize: 20,
     fontWeight: "bold",
@@ -1018,7 +1062,7 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   card: {
-    backgroundColor: "#cefec2",
+    backgroundColor: "#cef8ce",
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
@@ -1029,6 +1073,10 @@ const styles = StyleSheet.create({
     elevation: 2,
     borderWidth: 1,
     borderColor: "#C8E6C9",
+  },
+  darkCard: {
+    backgroundColor: "#1E1E1E",
+    borderColor: "#333",
   },
   cardHeader: {
     flexDirection: "row",
@@ -1053,6 +1101,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#2E7D32",
     marginLeft: 8,
+  },
+  darkMenuButton: {
+    backgroundColor: "#2A2A2A",
+    borderColor: "#444",
   },
   statusBadge: {
     flexDirection: "row",
@@ -1103,6 +1155,9 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#E8F5E9",
     paddingTop: 8,
+  },
+  darkBorder: {
+    borderTopColor: "#333",
   },
   cardDate: {
     fontSize: 11,
@@ -1162,6 +1217,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#C8E6C9",
   },
+  darkActionModal: {
+    backgroundColor: "#1E1E1E",
+    borderColor: "#333",
+  },
   actionButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -1171,6 +1230,9 @@ const styles = StyleSheet.create({
   deleteButton: {
     borderTopWidth: 1,
     borderTopColor: "#E8F5E9",
+  },
+  darkDeleteButton: {
+    borderTopColor: "#333",
   },
   actionText: {
     fontSize: 14,
@@ -1192,6 +1254,10 @@ const styles = StyleSheet.create({
     elevation: 5,
     borderWidth: 1,
     borderColor: "#C8E6C9",
+  },
+  darkFilterModal: {
+    backgroundColor: "#1E1E1E",
+    borderColor: "#333",
   },
   modalHeader: {
     flexDirection: "row",
@@ -1220,6 +1286,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     backgroundColor: "#F5F5F5",
   },
+  darkFilterOption: {
+    backgroundColor: "#2A2A2A",
+  },
   filterOptionActive: {
     backgroundColor: "#E8F5E9",
   },
@@ -1244,6 +1313,10 @@ const styles = StyleSheet.create({
     elevation: 5,
     borderWidth: 1,
     borderColor: "#C8E6C9",
+  },
+  darkDetailModal: {
+    backgroundColor: "#1E1E1E",
+    borderColor: "#333",
   },
   detailStatus: {
     flexDirection: "row",
@@ -1318,7 +1391,10 @@ const styles = StyleSheet.create({
   },
   formContainer: {
     flex: 1,
-    backgroundColor: "#E8F5E9",
+    backgroundColor: "#F5F5DC",
+  },
+  darkFormContainer: {
+    backgroundColor: "#121212",
   },
   formHeader: {
     backgroundColor: "#2E7D32",
@@ -1377,6 +1453,9 @@ const styles = StyleSheet.create({
     borderColor: "#2E7D32",
     gap: 6,
   },
+  darkTypeChip: {
+    backgroundColor: "#2A2A2A",
+  },
   typeChipActive: {
     backgroundColor: "#2E7D32",
   },
@@ -1426,6 +1505,9 @@ const styles = StyleSheet.create({
     borderColor: "#2E7D32",
     gap: 8,
   },
+  darkImageButton: {
+    backgroundColor: "#2A2A2A",
+  },
   imageButtonText: {
     fontSize: 14,
     color: "#2E7D32",
@@ -1451,5 +1533,11 @@ const styles = StyleSheet.create({
     color: "#FFF",
     fontSize: 16,
     fontWeight: "600",
+  },
+  darkText: {
+    color: "#FFF",
+  },
+  darkSubText: {
+    color: "#AAA",
   },
 });

@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   Modal,
@@ -13,6 +13,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useTheme } from "../../context/ThemeContext";
 
 interface SettingSection {
   title: string;
@@ -21,11 +22,36 @@ interface SettingSection {
 }
 
 export default function SettingsPage() {
+  const { theme, toggleTheme, isDarkMode } = useTheme();
   const [notifications, setNotifications] = useState<boolean>(true);
-  const [darkMode, setDarkMode] = useState<boolean>(false);
   const [language, setLanguage] = useState<string>("english");
   const [showLogoutModal, setShowLogoutModal] = useState<boolean>(false);
   const [showLanguageModal, setShowLanguageModal] = useState<boolean>(false);
+
+  // Load user data from AsyncStorage
+  const [userData, setUserData] = useState({
+    fullname: "John Farmer",
+    email: "john.farmer@example.com"
+  });
+
+  useEffect(() => {
+    loadUserData();
+  }, []);
+
+  const loadUserData = async () => {
+    try {
+      const userStr = await AsyncStorage.getItem("user");
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        setUserData({
+          fullname: user.fullname || "John Farmer",
+          email: user.email || "john.farmer@example.com"
+        });
+      }
+    } catch (error) {
+      console.error("Error loading user data:", error);
+    }
+  };
 
   const handleLogout = async (): Promise<void> => {
     try {
@@ -63,22 +89,30 @@ export default function SettingsPage() {
   const LanguageModal = () => (
     <Modal visible={showLanguageModal} transparent animationType="fade">
       <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
+        <View style={[styles.modalContent, isDarkMode && styles.darkModalContent]}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Select Language</Text>
+            <Text style={[styles.modalTitle, isDarkMode && styles.darkText]}>Select Language</Text>
             <TouchableOpacity onPress={() => setShowLanguageModal(false)}>
-              <MaterialCommunityIcons name="close" size={24} color="#666" />
+              <MaterialCommunityIcons name="close" size={24} color={isDarkMode ? "#FFF" : "#666"} />
             </TouchableOpacity>
           </View>
           
           <TouchableOpacity 
-            style={[styles.languageOption, language === "english" && styles.languageOptionActive]}
+            style={[
+              styles.languageOption, 
+              language === "english" && styles.languageOptionActive,
+              isDarkMode && styles.darkLanguageOption
+            ]}
             onPress={() => {
               setLanguage("english");
               setShowLanguageModal(false);
             }}
           >
-            <Text style={[styles.languageText, language === "english" && styles.languageTextActive]}>
+            <Text style={[
+              styles.languageText, 
+              language === "english" && styles.languageTextActive,
+              isDarkMode && styles.darkText
+            ]}>
               🇬🇧 English
             </Text>
             {language === "english" && (
@@ -87,13 +121,21 @@ export default function SettingsPage() {
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={[styles.languageOption, language === "kinyarwanda" && styles.languageOptionActive]}
+            style={[
+              styles.languageOption, 
+              language === "kinyarwanda" && styles.languageOptionActive,
+              isDarkMode && styles.darkLanguageOption
+            ]}
             onPress={() => {
               setLanguage("kinyarwanda");
               setShowLanguageModal(false);
             }}
           >
-            <Text style={[styles.languageText, language === "kinyarwanda" && styles.languageTextActive]}>
+            <Text style={[
+              styles.languageText, 
+              language === "kinyarwanda" && styles.languageTextActive,
+              isDarkMode && styles.darkText
+            ]}>
               🇷🇼 Kinyarwanda
             </Text>
             {language === "kinyarwanda" && (
@@ -102,13 +144,21 @@ export default function SettingsPage() {
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={[styles.languageOption, language === "french" && styles.languageOptionActive]}
+            style={[
+              styles.languageOption, 
+              language === "french" && styles.languageOptionActive,
+              isDarkMode && styles.darkLanguageOption
+            ]}
             onPress={() => {
               setLanguage("french");
               setShowLanguageModal(false);
             }}
           >
-            <Text style={[styles.languageText, language === "french" && styles.languageTextActive]}>
+            <Text style={[
+              styles.languageText, 
+              language === "french" && styles.languageTextActive,
+              isDarkMode && styles.darkText
+            ]}>
               🇫🇷 Français
             </Text>
             {language === "french" && (
@@ -123,19 +173,19 @@ export default function SettingsPage() {
   const LogoutModal = () => (
     <Modal visible={showLogoutModal} transparent animationType="fade">
       <View style={styles.modalOverlay}>
-        <View style={[styles.modalContent, styles.logoutModal]}>
+        <View style={[styles.modalContent, styles.logoutModal, isDarkMode && styles.darkModalContent]}>
           <View style={styles.logoutIconContainer}>
             <MaterialCommunityIcons name="logout" size={50} color="#D32F2F" />
           </View>
-          <Text style={styles.logoutTitle}>Logout</Text>
-          <Text style={styles.logoutMessage}>Are you sure you want to logout?</Text>
+          <Text style={[styles.logoutTitle, isDarkMode && styles.darkText]}>Logout</Text>
+          <Text style={[styles.logoutMessage, isDarkMode && styles.darkSubText]}>Are you sure you want to logout?</Text>
           
           <View style={styles.logoutButtons}>
             <TouchableOpacity 
-              style={styles.logoutCancelButton} 
+              style={[styles.logoutCancelButton, isDarkMode && styles.darkCancelButton]} 
               onPress={() => setShowLogoutModal(false)}
             >
-              <Text style={styles.logoutCancelText}>Cancel</Text>
+              <Text style={[styles.logoutCancelText, isDarkMode && styles.darkText]}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.logoutConfirmButton} 
@@ -162,30 +212,34 @@ export default function SettingsPage() {
     onPress?: () => void;
     color?: string;
   }) => (
-    <TouchableOpacity style={styles.settingItem} onPress={onPress} disabled={!onPress}>
+    <TouchableOpacity 
+      style={[styles.settingItem, isDarkMode && styles.darkSettingItem]} 
+      onPress={onPress} 
+      disabled={!onPress}
+    >
       <View style={styles.settingLeft}>
         <View style={[styles.settingIcon, { backgroundColor: `${color}15` }]}>
           <MaterialCommunityIcons name={icon} size={22} color={color} />
         </View>
-        <Text style={styles.settingLabel}>{label}</Text>
+        <Text style={[styles.settingLabel, isDarkMode && styles.darkText]}>{label}</Text>
       </View>
       {rightElement || (
-        <MaterialCommunityIcons name="chevron-right" size={22} color="#999" />
+        <MaterialCommunityIcons name="chevron-right" size={22} color={isDarkMode ? "#AAA" : "#999"} />
       )}
     </TouchableOpacity>
   );
 
   const SectionHeader = ({ title, icon, color }: SettingSection) => (
-    <View style={styles.sectionHeader}>
+    <View style={[styles.sectionHeader, isDarkMode && styles.darkSectionHeader]}>
       <MaterialCommunityIcons name={icon} size={20} color={color} />
       <Text style={[styles.sectionTitle, { color }]}>{title}</Text>
     </View>
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, isDarkMode && styles.darkContainer]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, isDarkMode && styles.darkHeader]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <MaterialCommunityIcons name="arrow-left" size={24} color="#FFF" />
         </TouchableOpacity>
@@ -196,7 +250,7 @@ export default function SettingsPage() {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Profile Summary Card */}
         <TouchableOpacity 
-          style={styles.profileCard}
+          style={[styles.profileCard, isDarkMode && styles.darkProfileCard]}
           onPress={() => router.push("/profile")}
         >
           <View style={styles.profileInfo}>
@@ -204,15 +258,15 @@ export default function SettingsPage() {
               <MaterialCommunityIcons name="account" size={30} color="#FFF" />
             </View>
             <View style={styles.profileDetails}>
-              <Text style={styles.profileName}>John Farmer</Text>
-              <Text style={styles.profileEmail}>john.farmer@example.com</Text>
+              <Text style={[styles.profileName, isDarkMode && styles.darkText]}>{userData.fullname}</Text>
+              <Text style={[styles.profileEmail, isDarkMode && styles.darkSubText]}>{userData.email}</Text>
             </View>
           </View>
-          <MaterialCommunityIcons name="chevron-right" size={24} color="#999" />
+          <MaterialCommunityIcons name="chevron-right" size={24} color={isDarkMode ? "#AAA" : "#999"} />
         </TouchableOpacity>
 
         {/* Preferences Section */}
-        <View style={styles.section}>
+        <View style={[styles.section, isDarkMode && styles.darkSection]}>
           <SectionHeader title="Preferences" icon="tune" color="#2E7D32" />
           
           <SettingItem 
@@ -233,8 +287,8 @@ export default function SettingsPage() {
             label="Dark Mode"
             rightElement={
               <Switch
-                value={darkMode}
-                onValueChange={setDarkMode}
+                value={isDarkMode}
+                onValueChange={toggleTheme}
                 trackColor={{ false: "#E0E0E0", true: "#2E7D32" }}
                 thumbColor="#FFF"
               />
@@ -247,18 +301,18 @@ export default function SettingsPage() {
             onPress={() => setShowLanguageModal(true)}
             rightElement={
               <View style={styles.languageDisplay}>
-                <Text style={styles.languageDisplayText}>
+                <Text style={[styles.languageDisplayText, isDarkMode && styles.darkSubText]}>
                   {language === "english" ? "English" : 
                    language === "kinyarwanda" ? "Kinyarwanda" : "Français"}
                 </Text>
-                <MaterialCommunityIcons name="chevron-right" size={22} color="#999" />
+                <MaterialCommunityIcons name="chevron-right" size={22} color={isDarkMode ? "#AAA" : "#999"} />
               </View>
             }
           />
         </View>
 
         {/* Account Section */}
-        <View style={styles.section}>
+        <View style={[styles.section, isDarkMode && styles.darkSection]}>
           <SectionHeader title="Account" icon="account-cog" color="#2E7D32" />
           
           <SettingItem 
@@ -287,7 +341,7 @@ export default function SettingsPage() {
         </View>
 
         {/* Support Section */}
-        <View style={styles.section}>
+        <View style={[styles.section, isDarkMode && styles.darkSection]}>
           <SectionHeader title="Support" icon="help-circle" color="#2E7D32" />
           
           <SettingItem 
@@ -325,11 +379,11 @@ export default function SettingsPage() {
         </View>
 
         {/* Danger Zone */}
-        <View style={styles.section}>
+        <View style={[styles.section, isDarkMode && styles.darkSection]}>
           <SectionHeader title="Danger Zone" icon="alert" color="#D32F2F" />
           
           <TouchableOpacity 
-            style={styles.dangerButton}
+            style={[styles.dangerButton, isDarkMode && styles.darkDangerButton]}
             onPress={() => setShowLogoutModal(true)}
           >
             <MaterialCommunityIcons name="logout" size={22} color="#D32F2F" />
@@ -337,7 +391,7 @@ export default function SettingsPage() {
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={styles.dangerButton}
+            style={[styles.dangerButton, isDarkMode && styles.darkDangerButton]}
             onPress={handleDeleteAccount}
           >
             <MaterialCommunityIcons name="delete" size={22} color="#D32F2F" />
@@ -347,8 +401,8 @@ export default function SettingsPage() {
 
         {/* App Version */}
         <View style={styles.versionContainer}>
-          <Text style={styles.versionText}>Version 1.0.0</Text>
-          <Text style={styles.copyrightText}>© 2024 AgroCare. All rights reserved.</Text>
+          <Text style={[styles.versionText, isDarkMode && styles.darkSubText]}>Version 1.0.0</Text>
+          <Text style={[styles.copyrightText, isDarkMode && styles.darkSubText]}>© 2024 AgroCare. All rights reserved.</Text>
         </View>
       </ScrollView>
 
@@ -364,6 +418,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#F5F7FA",
   },
+  darkContainer: {
+    backgroundColor: "#121212",
+  },
   header: {
     backgroundColor: "#2E7D32",
     flexDirection: "row",
@@ -371,6 +428,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 12,
+  },
+  darkHeader: {
+    backgroundColor: "#1B5E20",
   },
   backButton: {
     padding: 8,
@@ -400,6 +460,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 3,
+  },
+  darkProfileCard: {
+    backgroundColor: "#1E1E1E",
   },
   profileInfo: {
     flexDirection: "row",
@@ -437,6 +500,9 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 3,
   },
+  darkSection: {
+    backgroundColor: "#1E1E1E",
+  },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -445,6 +511,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: "#F0F0F0",
+  },
+  darkSectionHeader: {
+    borderBottomColor: "#333",
   },
   sectionTitle: {
     fontSize: 15,
@@ -458,6 +527,9 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: "#F5F5F5",
+  },
+  darkSettingItem: {
+    borderBottomColor: "#333",
   },
   settingLeft: {
     flexDirection: "row",
@@ -493,6 +565,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#F5F5F5",
   },
+  darkDangerButton: {
+    borderBottomColor: "#333",
+  },
   dangerButtonText: {
     fontSize: 15,
     color: "#D32F2F",
@@ -524,6 +599,9 @@ const styles = StyleSheet.create({
     width: "80%",
     maxWidth: 320,
   },
+  darkModalContent: {
+    backgroundColor: "#1E1E1E",
+  },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -547,6 +625,9 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginBottom: 8,
   },
+  darkLanguageOption: {
+    backgroundColor: "#2A2A2A",
+  },
   languageOptionActive: {
     backgroundColor: "#E8F5E9",
   },
@@ -557,6 +638,12 @@ const styles = StyleSheet.create({
   languageTextActive: {
     color: "#2E7D32",
     fontWeight: "500",
+  },
+  darkText: {
+    color: "#FFF",
+  },
+  darkSubText: {
+    color: "#AAA",
   },
   logoutModal: {
     alignItems: "center",
@@ -593,6 +680,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 10,
     alignItems: "center",
+  },
+  darkCancelButton: {
+    backgroundColor: "#2A2A2A",
   },
   logoutCancelText: {
     fontSize: 15,

@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
-  Modal, // Add this import
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -18,6 +18,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useTheme } from '../../context/ThemeContext';
 import BASE_URL from "../../services/api";
 
 // Define types
@@ -70,7 +71,8 @@ export default function FarmerProfilePage() {
   const [imageError, setImageError] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-
+  const { isDarkMode } = useTheme();
+  
   // Form state for editing
   const [formData, setFormData] = useState({
     fullname: "",
@@ -337,8 +339,8 @@ export default function FarmerProfilePage() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
+      <SafeAreaView style={[styles.container, isDarkMode && styles.darkContainer]}>
+        <View style={[styles.header, isDarkMode && styles.darkHeader]}>
           <TouchableOpacity onPress={() => router.back()}>
             <MaterialCommunityIcons name="arrow-left" size={24} color="#FFF" />
           </TouchableOpacity>
@@ -354,18 +356,18 @@ export default function FarmerProfilePage() {
 
   if (!user) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
+      <SafeAreaView style={[styles.container, isDarkMode && styles.darkContainer]}>
+        <View style={[styles.header, isDarkMode && styles.darkHeader]}>
           <TouchableOpacity onPress={() => router.back()}>
             <MaterialCommunityIcons name="arrow-left" size={24} color="#FFF" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Farmer Profile</Text>
           <View style={{ width: 40 }} />
         </View>
-        <View style={styles.errorContainer}>
-          <Text>Failed to load profile</Text>
+        <View style={[styles.errorContainer, isDarkMode && styles.darkErrorContainer]}>
+          <Text style={[isDarkMode && styles.darkText]}>Failed to load profile</Text>
           <TouchableOpacity onPress={loadUserProfile}>
-            <Text>Retry</Text>
+            <Text style={[styles.retryText, isDarkMode && styles.darkText]}>Retry</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -376,8 +378,8 @@ export default function FarmerProfilePage() {
   console.log("User profile_picture:", user.profile_picture);
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.container, isDarkMode && styles.darkContainer]}>
+      <View style={[styles.header, isDarkMode && styles.darkHeader]}>
         <TouchableOpacity onPress={() => router.back()}>
           <MaterialCommunityIcons name="arrow-left" size={24} color="#FFF" />
         </TouchableOpacity>
@@ -426,111 +428,116 @@ export default function FarmerProfilePage() {
             )}
           </View>
           
-          <View style={styles.roleBadge}>
-            <MaterialCommunityIcons name="tractor" size={16} color="#2E7D32" />
-            <Text style={styles.roleText}>Farmer</Text>
+          <View style={[styles.roleBadge, isDarkMode && styles.darkRoleBadge]}>
+            <MaterialCommunityIcons name="tractor" size={16} color={isDarkMode ? "#FFF" : "#2E7D32"} />
+            <Text style={[styles.roleText, isDarkMode && styles.darkText]}>Farmer</Text>
           </View>
         </View>
 
         {/* Personal Information */}
-        <View style={styles.infoCard}>
-          <Text style={styles.sectionTitle}>Personal Information</Text>
+        <View style={[styles.infoCard, isDarkMode && styles.darkCard]}>
+          <Text style={[styles.sectionTitle, isDarkMode && styles.darkText]}>Personal Information</Text>
           
-          <View style={styles.infoRow}>
+          <View style={[styles.infoRow, isDarkMode && styles.darkBorder]}>
             <MaterialCommunityIcons name="account" size={20} color="#2E7D32" />
             <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Full Name</Text>
+              <Text style={[styles.infoLabel, isDarkMode && styles.darkSubText]}>Full Name</Text>
               {isEditing ? (
                 <TextInput
-                  style={styles.infoInput}
+                  style={[styles.infoInput, isDarkMode && styles.darkInput]}
                   value={formData.fullname}
                   onChangeText={(text) => handleChange("fullname", text)}
                   placeholder="Full Name"
+                  placeholderTextColor={isDarkMode ? "#AAA" : "#999"}
                 />
               ) : (
-                <Text style={styles.infoValue}>{user.fullname}</Text>
+                <Text style={[styles.infoValue, isDarkMode && styles.darkText]}>{user.fullname}</Text>
               )}
             </View>
           </View>
 
-          <View style={styles.infoRow}>
+          <View style={[styles.infoRow, isDarkMode && styles.darkBorder]}>
             <MaterialCommunityIcons name="email" size={20} color="#2E7D32" />
             <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Email</Text>
-              <Text style={styles.infoValue}>{user.email}</Text>
+              <Text style={[styles.infoLabel, isDarkMode && styles.darkSubText]}>Email</Text>
+              <Text style={[styles.infoValue, isDarkMode && styles.darkText]}>{user.email}</Text>
             </View>
           </View>
 
-          <View style={styles.infoRow}>
+          <View style={[styles.infoRow, isDarkMode && styles.darkBorder]}>
             <MaterialCommunityIcons name="phone" size={20} color="#2E7D32" />
             <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Phone</Text>
+              <Text style={[styles.infoLabel, isDarkMode && styles.darkSubText]}>Phone</Text>
               {isEditing ? (
                 <TextInput
-                  style={styles.infoInput}
+                  style={[styles.infoInput, isDarkMode && styles.darkInput]}
                   value={formData.phone}
                   onChangeText={(text) => handleChange("phone", text)}
                   placeholder="Phone Number"
                   keyboardType="phone-pad"
+                  placeholderTextColor={isDarkMode ? "#AAA" : "#999"}
                 />
               ) : (
-                <Text style={styles.infoValue}>{user.phone || 'Not provided'}</Text>
+                <Text style={[styles.infoValue, isDarkMode && styles.darkText]}>{user.phone || 'Not provided'}</Text>
               )}
             </View>
           </View>
         </View>
 
         {/* Farm Information */}
-        <View style={styles.infoCard}>
-          <Text style={styles.sectionTitle}>Farm Information</Text>
+        <View style={[styles.infoCard, isDarkMode && styles.darkCard]}>
+          <Text style={[styles.sectionTitle, isDarkMode && styles.darkText]}>Farm Information</Text>
           
-          <View style={styles.infoRow}>
+          <View style={[styles.infoRow, isDarkMode && styles.darkBorder]}>
             <MaterialCommunityIcons name="map-marker" size={20} color="#2E7D32" />
             <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>District</Text>
+              <Text style={[styles.infoLabel, isDarkMode && styles.darkSubText]}>District</Text>
               {isEditing ? (
                 <TextInput
-                  style={styles.infoInput}
+                  style={[styles.infoInput, isDarkMode && styles.darkInput]}
                   value={formData.district}
                   onChangeText={(text) => handleChange("district", text)}
                   placeholder="District"
+                  placeholderTextColor={isDarkMode ? "#AAA" : "#999"}
                 />
               ) : (
-                <Text style={styles.infoValue}>{user.district || 'Not provided'}</Text>
+                <Text style={[styles.infoValue, isDarkMode && styles.darkText]}>{user.district || 'Not provided'}</Text>
               )}
             </View>
           </View>
 
-          <View style={styles.infoRow}>
+          <View style={[styles.infoRow, isDarkMode && styles.darkBorder]}>
             <MaterialCommunityIcons name="terrain" size={20} color="#2E7D32" />
             <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Farm Location</Text>
+              <Text style={[styles.infoLabel, isDarkMode && styles.darkSubText]}>Farm Location</Text>
               {isEditing ? (
                 <TextInput
-                  style={styles.infoInput}
+                  style={[styles.infoInput, isDarkMode && styles.darkInput]}
                   value={formData.farm_location}
                   onChangeText={(text) => handleChange("farm_location", text)}
                   placeholder="Farm Location"
+                  placeholderTextColor={isDarkMode ? "#AAA" : "#999"}
                 />
               ) : (
-                <Text style={styles.infoValue}>{user.farm_location || 'Not provided'}</Text>
+                <Text style={[styles.infoValue, isDarkMode && styles.darkText]}>{user.farm_location || 'Not provided'}</Text>
               )}
             </View>
           </View>
 
-          <View style={styles.infoRow}>
+          <View style={[styles.infoRow, isDarkMode && styles.darkBorder]}>
             <MaterialCommunityIcons name="sprout" size={20} color="#2E7D32" />
             <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Main Crops</Text>
+              <Text style={[styles.infoLabel, isDarkMode && styles.darkSubText]}>Main Crops</Text>
               {isEditing ? (
                 <TextInput
-                  style={styles.infoInput}
+                  style={[styles.infoInput, isDarkMode && styles.darkInput]}
                   value={formData.crop_type}
                   onChangeText={(text) => handleChange("crop_type", text)}
                   placeholder="Main Crops"
+                  placeholderTextColor={isDarkMode ? "#AAA" : "#999"}
                 />
               ) : (
-                <Text style={styles.infoValue}>{user.crop_type || 'Not provided'}</Text>
+                <Text style={[styles.infoValue, isDarkMode && styles.darkText]}>{user.crop_type || 'Not provided'}</Text>
               )}
             </View>
           </View>
@@ -539,10 +546,17 @@ export default function FarmerProfilePage() {
         {/* Action Buttons */}
         {isEditing ? (
           <View style={styles.buttonContainer}>
-            <TouchableOpacity style={styles.cancelButton} onPress={handleCancel}>
-              <Text style={styles.cancelButtonText}>Cancel</Text>
+            <TouchableOpacity 
+              style={[styles.cancelButton, isDarkMode && styles.darkCancelButton]} 
+              onPress={handleCancel}
+            >
+              <Text style={[styles.cancelButtonText, isDarkMode && styles.darkText]}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.saveButton} onPress={handleSave} disabled={saving}>
+            <TouchableOpacity 
+              style={[styles.saveButton, isDarkMode && styles.darkSaveButton]} 
+              onPress={handleSave} 
+              disabled={saving}
+            >
               {saving ? (
                 <ActivityIndicator size="small" color="#FFF" />
               ) : (
@@ -554,9 +568,9 @@ export default function FarmerProfilePage() {
 
         {/* Image URL Display (for testing) */}
         {imageUrl && (
-          <View style={styles.infoCard}>
-            <Text style={styles.label}>Image URL (saved in DB):</Text>
-            <Text style={styles.url} numberOfLines={2}>{imageUrl}</Text>
+          <View style={[styles.infoCard, isDarkMode && styles.darkCard]}>
+            <Text style={[styles.label, isDarkMode && styles.darkText]}>Image URL (saved in DB):</Text>
+            <Text style={[styles.url, isDarkMode && styles.darkSubText]} numberOfLines={2}>{imageUrl}</Text>
           </View>
         )}
       </ScrollView>
@@ -564,9 +578,9 @@ export default function FarmerProfilePage() {
       {/* Success Modal */}
       <Modal visible={showSuccessModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, isDarkMode && styles.darkModalContent]}>
             <MaterialCommunityIcons name="check-circle" size={50} color="#2E7D32" />
-            <Text style={styles.modalText}>Profile updated successfully!</Text>
+            <Text style={[styles.modalText, isDarkMode && styles.darkText]}>Profile updated successfully!</Text>
           </View>
         </View>
       </Modal>
@@ -577,7 +591,7 @@ export default function FarmerProfilePage() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F7FA",
+    backgroundColor: "#F5F5DC", // Nude background
   },
   header: {
     backgroundColor: "#2E7D32",
@@ -601,6 +615,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+  },
+  retryText: {
+    color: "#2E7D32",
+    marginTop: 10,
+    fontSize: 16,
   },
   content: {
     padding: 16,
@@ -750,5 +769,45 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#333",
     marginTop: 10,
+  },
+  
+  // Dark mode styles
+  darkContainer: {
+    backgroundColor: "#121212",
+  },
+  darkHeader: {
+    backgroundColor: "#1B5E20",
+  },
+  darkErrorContainer: {
+    backgroundColor: "#121212",
+  },
+  darkRoleBadge: {
+    backgroundColor: "#1B5E20",
+  },
+  darkCard: {
+    backgroundColor: "#1E1E1E",
+  },
+  darkText: {
+    color: "#FFF",
+  },
+  darkSubText: {
+    color: "#AAA",
+  },
+  darkBorder: {
+    borderBottomColor: "#333",
+  },
+  darkInput: {
+    color: "#FFF",
+    borderBottomColor: "#2E7D32",
+  },
+  darkCancelButton: {
+    backgroundColor: "#2A2A2A",
+    borderColor: "#444",
+  },
+  darkSaveButton: {
+    backgroundColor: "#1B5E20",
+  },
+  darkModalContent: {
+    backgroundColor: "#1E1E1E",
   },
 });
